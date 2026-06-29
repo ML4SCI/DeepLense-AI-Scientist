@@ -42,6 +42,14 @@ from dlens.agents._models import LlamaCppModel, OllamaModel, OpenAIModel, VLLMMo
 DEFAULT_PROVIDER = "ollama"
 DEFAULT_MODEL = "qwen3:8b"
 _DEFAULT_PORT = {"ollama": "11434", "vllm": "8000", "llamacpp": "8080"}
+# Default model per provider when DLENS_MODEL is not set (local tags vs a hosted name).
+_DEFAULT_MODEL_BY_PROVIDER = {
+    "ollama": "qwen3:8b",
+    "vllm": "qwen3:8b",
+    "llamacpp": "qwen3:8b",
+    "openai": "gpt-4o-mini",
+    "openai_compatible": "qwen3:8b",
+}
 
 
 @dataclass(frozen=True)
@@ -56,9 +64,12 @@ class ModelSettings:
 
     @classmethod
     def from_env(cls) -> "ModelSettings":
+        provider = os.getenv("DLENS_MODEL_PROVIDER", DEFAULT_PROVIDER).strip().lower()
+        # Model default is provider-specific (e.g. gpt-4o-mini for openai), unless set.
+        model = (os.getenv("DLENS_MODEL") or _DEFAULT_MODEL_BY_PROVIDER.get(provider, DEFAULT_MODEL)).strip()
         return cls(
-            provider=os.getenv("DLENS_MODEL_PROVIDER", DEFAULT_PROVIDER).strip().lower(),
-            model=os.getenv("DLENS_MODEL", DEFAULT_MODEL).strip(),
+            provider=provider,
+            model=model,
             port=os.getenv("DLENS_MODEL_PORT") or None,
             base_url=os.getenv("DLENS_MODEL_BASE_URL") or None,
             api_key=os.getenv("DLENS_MODEL_API_KEY") or os.getenv("OPENAI_API_KEY") or None,
