@@ -16,7 +16,7 @@ dependencies = [
     "outlines>=1.2.9",
     "pandas>=3.0.0",
     "pydantic>=2.12.5",
-    "pydantic-ai>=1.48.0",
+    "pydantic-ai>=2.0",
     "requests>=2.32.5",
     "xmltodict>=1.0.2",
 ]
