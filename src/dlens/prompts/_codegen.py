@@ -11,10 +11,12 @@ fixes that. Regenerate the sheet for the sandbox image's pinned version with
 
 from __future__ import annotations
 
-# Verified by introspection against lenstronomy 1.14.2. If the sandbox pins a
-# different version (e.g. 1.9.2 for DeepLenseSim), regenerate with the script above.
+# Verified by introspection against lenstronomy 1.9.2 (the sandbox image's pin —
+# DeepLenseSim's version). NOTE: argument casing changes across versions (1.9.2 uses
+# camelCase numPix/deltaPix; 1.14+ uses num_pix/delta_pix) — regenerate with the
+# script above whenever the pin changes.
 LENSTRONOMY_API_CHEATSHEET = """\
-LENSTRONOMY API CHEAT-SHEET (verified against the sandbox's installed version — use these EXACT signatures):
+LENSTRONOMY API CHEAT-SHEET (verified against the sandbox's installed version, lenstronomy 1.9.2 — use these EXACT signatures):
 - Imports:
     from lenstronomy.LensModel.lens_model import LensModel
     from lenstronomy.LightModel.light_model import LightModel
@@ -23,8 +25,8 @@ LENSTRONOMY API CHEAT-SHEET (verified against the sandbox's installed version �
     from lenstronomy.Data.psf import PSF
     import lenstronomy.Util.simulation_util as sim_util
     import lenstronomy.Util.param_util as param_util
-- Grid/data (snake_case args, NOT numPix/deltaPix):
-    kwargs_data = sim_util.data_configure_simple(num_pix, delta_pix, exposure_time=None, background_rms=None)
+- Grid/data (this version uses camelCase numPix/deltaPix):
+    kwargs_data = sim_util.data_configure_simple(numPix, deltaPix, exposure_time=None, background_rms=None)
     data_class = ImageData(**kwargs_data)
 - PSF (use fwhm; there is NO 'sigma' argument):
     psf_class = PSF(psf_type='GAUSSIAN', fwhm=0.15, pixel_size=delta_pix)

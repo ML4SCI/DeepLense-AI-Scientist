@@ -5,19 +5,22 @@
 # writes generated code to /work/prog.py and the sandbox runs it isolated; the script
 # saves its image to $DLENS_OUTPUT (/work/output.npy), which is read back for validation.
 #
-# NOTE: lenstronomy==1.9.2 is old and dependency-heavy; Python 3.10 + these pins are a
-# known-workable starting point, but the exact numpy/scipy/astropy pins may still need
-# tuning (this is the install pain we discussed). Treat versions as a starting point.
+# NOTE: lenstronomy==1.9.2 is old and dependency-heavy. The pins below are VERIFIED
+# working on Python 3.10 (numpy<2, scipy<1.14, astropy<6 -> scipy 1.13.x, astropy
+# 5.3.x): newer astropy removes `isiterable`, which lenstronomy 1.9.2 imports, and
+# newer scipy drops APIs it uses. Keep these pins in sync if the lenstronomy pin moves.
 
 FROM python:3.10-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Patch base-image CVEs where possible (the container also runs non-root with
+# --network=none, so exposure is minimal).
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
         git build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Core scientific stack + lenstronomy (pin as needed).
+# Core scientific stack + lenstronomy (era-matched pins; see NOTE above).
 RUN pip install --no-cache-dir \
-        "numpy<2" scipy astropy colossus "lenstronomy==1.9.2"
+        "numpy<2" "scipy<1.14" "astropy<6" colossus "lenstronomy==1.9.2"
 
 # Substructure realizations (pyHalo) + the DeepLenseSim convenience wrapper (`deeplense`).
 RUN pip install --no-cache-dir "git+https://github.com/dangilman/pyHalo.git"
