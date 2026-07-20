@@ -106,18 +106,22 @@ def test_infer_agent_offline():
     agent = InferAgent(model=model, backend=MockInferBackend())
     res = asyncio.run(agent.infer("weights.npz", ds))
     assert isinstance(res.output, InferReport)
-    assert res.output.result.num_samples == 8
+    assert res.output.num_samples == 8  # compact report; full arrays stay on deps
     assert agent.last_result is not None
+    assert len(agent.last_result.predictions) == 8  # authoritative full result
 
 
 def test_analysis_agent_offline():
     ir = MockInferBackend().infer("w", _ref())
-    model = make_scripted_analysis_model(ir.model_dump(mode="json"))
+    model = make_scripted_analysis_model()
     agent = AnalysisAgent(model=model)
-    res = asyncio.run(agent.analyze(ir))
+    res = asyncio.run(agent.analyze(ir, class_names=_ref().class_names))
     assert isinstance(res.output, AnalysisReport)
     assert 0.0 <= res.output.result.accuracy <= 1.0
     assert len(res.output.result.confusion_matrix) == 2
+    # authoritative tool-computed result surfaced code-side
+    assert agent.last_result is not None
+    assert agent.last_result.accuracy == res.output.result.accuracy
 
 
 def test_experiment_run_assembly(tmp_path: Path):

@@ -86,7 +86,11 @@ def get_infer_backend(name: str = "auto") -> InferBackend:
         return MockInferBackend()
     if name in ("auto", "centroid"):
         return CentroidInferBackend()
-    raise ValueError(f"Unknown infer backend: {name!r} (expected auto | centroid | mock)")
+    if name == "torch":
+        from dlens.tools._torch_backends import TorchInferBackend  # lazy: needs torch
+
+        return TorchInferBackend()
+    raise ValueError(f"Unknown infer backend: {name!r} (expected auto | centroid | torch | mock)")
 
 
 @dataclass
@@ -100,7 +104,18 @@ def register_infer_tool(agent: Agent) -> None:
 
     @agent.tool
     def run_inference(ctx: RunContext[InferDeps], weights_path: str, dataset: DatasetRef) -> dict:
-        """Score ``dataset`` with the trained model at ``weights_path``; return predictions + metrics."""
+        """Score ``dataset`` with the trained model at ``weights_path``.
+
+        Returns a compact summary (run id, sample/class counts, accuracy). The full
+        prediction arrays are kept on deps (``InferDeps.last_result``) — they are too
+        large to round-trip through the model context.
+        """
         result = ctx.deps.backend.infer(weights_path, dataset)
         ctx.deps.last_result = result
-        return result.model_dump(mode="json")
+        return {
+            "run_id": result.run_id,
+            "num_samples": result.num_samples,
+            "num_classes": result.num_classes,
+            "accuracy": result.accuracy,
+            "backend": result.backend,
+        }

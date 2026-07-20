@@ -9,10 +9,11 @@ so no separate mock backend is needed.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Optional
 
 import numpy as np
-from pydantic_ai import Agent
+from pydantic_ai import Agent, RunContext
 
 from dlens.schemas._downstream import AnalysisResult, InferResult
 
@@ -80,10 +81,27 @@ def compute_analysis(infer: InferResult, class_names: Optional[list[str]] = None
     )
 
 
+@dataclass
+class AnalysisDeps:
+    """Runtime dependencies for the analysis agent.
+
+    The inference result is injected here rather than passed as a tool argument:
+    for real datasets the prediction arrays are far too large to round-trip through
+    the model context, and the numbers must not be LLM-transcribed anyway.
+    """
+
+    infer_result: InferResult
+    class_names: Optional[list[str]] = None
+    last_result: Optional[AnalysisResult] = None
+
+
 def register_analysis_tool(agent: Agent) -> None:
     """Register the ``analyze_predictions`` tool onto ``agent``."""
 
-    @agent.tool_plain
-    def analyze_predictions(infer_result: InferResult) -> dict:
-        """Compute accuracy, confusion matrix, per-class metrics and macro AUC from predictions."""
-        return compute_analysis(infer_result).model_dump(mode="json")
+    @agent.tool
+    def analyze_predictions(ctx: RunContext[AnalysisDeps]) -> dict:
+        """Compute accuracy, confusion matrix, per-class metrics and macro AUC for the
+        inference result attached to this run. Takes no arguments."""
+        result = compute_analysis(ctx.deps.infer_result, ctx.deps.class_names)
+        ctx.deps.last_result = result
+        return result.model_dump(mode="json")

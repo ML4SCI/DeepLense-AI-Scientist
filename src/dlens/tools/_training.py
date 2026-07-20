@@ -113,7 +113,11 @@ def get_train_backend(name: str = "auto", *, output_root: str = "models") -> Tra
         return MockTrainBackend()
     if name in ("auto", "centroid"):
         return CentroidTrainBackend(output_root=output_root)
-    raise ValueError(f"Unknown train backend: {name!r} (expected auto | centroid | mock)")
+    if name == "torch":
+        from dlens.tools._torch_backends import TorchTrainBackend  # lazy: needs torch
+
+        return TorchTrainBackend(output_root=output_root)
+    raise ValueError(f"Unknown train backend: {name!r} (expected auto | centroid | torch | mock)")
 
 
 @dataclass

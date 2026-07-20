@@ -27,13 +27,13 @@ def _tool_return(messages: list[ModelMessage], tool_name: str) -> Any:
     return found
 
 
-def _report(info: AgentInfo, message: str, result: dict) -> ModelResponse:
+def _report(info: AgentInfo, payload: dict) -> ModelResponse:
     # Each downstream agent has a single output type -> exactly one output tool.
     return ModelResponse(
         parts=[
             ToolCallPart(
                 info.output_tools[0].name,
-                {"reasoning": "Reporting the tool result.", "message": message, "result": result},
+                {"reasoning": "Reporting the tool result.", **payload},
             )
         ]
     )
@@ -57,7 +57,7 @@ def make_scripted_train_model(
                     )
                 ]
             )
-        return _report(info, f"Trained model (run {rec['run_id']}).", rec)
+        return _report(info, {"message": f"Trained model (run {rec['run_id']}).", "result": rec})
 
     return FunctionModel(respond)
 
@@ -69,16 +69,27 @@ def make_scripted_infer_model(weights_path: str, dataset: dict[str, Any]) -> Fun
             return ModelResponse(
                 parts=[ToolCallPart("run_inference", {"weights_path": weights_path, "dataset": dataset})]
             )
-        return _report(info, f"Scored {rec['num_samples']} samples.", rec)
+        # The tool now returns a compact summary; the report mirrors it.
+        return _report(
+            info,
+            {
+                "message": f"Scored {rec['num_samples']} samples.",
+                "run_id": rec["run_id"],
+                "num_samples": rec["num_samples"],
+                "accuracy": rec.get("accuracy"),
+            },
+        )
 
     return FunctionModel(respond)
 
 
-def make_scripted_analysis_model(infer_result: dict[str, Any]) -> FunctionModel:
+def make_scripted_analysis_model() -> FunctionModel:
+    """The analysis tool takes no arguments — the InferResult rides on deps."""
+
     def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         rec = _tool_return(messages, "analyze_predictions")
         if rec is None:
-            return ModelResponse(parts=[ToolCallPart("analyze_predictions", {"infer_result": infer_result})])
-        return _report(info, rec["summary"], rec)
+            return ModelResponse(parts=[ToolCallPart("analyze_predictions", {})])
+        return _report(info, {"message": rec["summary"], "result": rec})
 
     return FunctionModel(respond)

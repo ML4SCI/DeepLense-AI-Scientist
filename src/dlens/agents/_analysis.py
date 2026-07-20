@@ -16,7 +16,7 @@ from dlens.agents._base import BaseAgentConfig, DLensBaseAgent, OutputSchema
 from dlens.config import build_model_from_env
 from dlens.prompts._downstream import ANALYSIS_SYSTEM_PROMPT
 from dlens.schemas._downstream import AnalysisResult, InferResult
-from dlens.tools._analysis import register_analysis_tool
+from dlens.tools._analysis import AnalysisDeps, register_analysis_tool
 
 
 class AnalysisReport(OutputSchema):
@@ -50,11 +50,29 @@ class AnalysisAgent(DLensBaseAgent):
 
         super().__init__(
             config=config,
+            deps_type=AnalysisDeps,
             output_type=AnalysisReport,
             register_tools=register_analysis_tool,
             retries=retries,
         )
+        self._last_deps: AnalysisDeps | None = None
 
-    async def analyze(self, infer_result: InferResult):
-        """Convenience: run the agent on a typed inference result."""
-        return await self.arun(infer_result.model_dump_json())
+    async def analyze(self, infer_result: InferResult, class_names: list[str] | None = None):
+        """Run the agent on a typed inference result.
+
+        The full result rides on deps (the tool reads it there); only a compact
+        description goes through the model context — real prediction arrays are far
+        too large to round-trip through an LLM.
+        """
+        deps = AnalysisDeps(infer_result=infer_result, class_names=class_names)
+        self._last_deps = deps
+        query = (
+            f"Analyze inference run {infer_result.run_id}: {infer_result.num_samples} samples, "
+            f"{infer_result.num_classes} classes. Call analyze_predictions and report the metrics."
+        )
+        return await self.arun(query, deps=deps)
+
+    @property
+    def last_result(self) -> AnalysisResult | None:
+        """The authoritative analysis computed by the tool (not LLM-transcribed)."""
+        return self._last_deps.last_result if self._last_deps else None
