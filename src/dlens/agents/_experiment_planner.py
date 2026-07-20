@@ -45,5 +45,37 @@ class ExperimentPlanner(DLensBaseAgent):
         super().__init__(config=config, output_type=PlannerDecision, retries=retries)
 
     async def decide(self, state: ExperimentState):
-        """Convenience: run the planner on the current experiment state."""
-        return await self.arun(state.model_dump_json())
+        """Run the planner on a COMPACT view of the experiment state.
+
+        Prediction arrays (predictions / probabilities / true_labels) are excluded —
+        they are far too large for the model context; the planner reasons from the
+        aggregate metrics (train metrics, val accuracy/AUC, confusion, per-class).
+        """
+        compact = state.model_dump(
+            mode="json",
+            exclude={
+                "runs": {
+                    "__all__": {
+                        "infer_result": {"predictions", "probabilities", "true_labels"},
+                        "sim_output": True,
+                    }
+                }
+            },
+        )
+        import json
+
+        return await self.arun(json.dumps(compact))
+
+
+class ReActPlannerStrategy:
+    """The default PlannerStrategy: a ReAct-style LLM planner (one observation ->
+    one reasoned decision per iteration). Swappable — e.g. an agentic tree search
+    can implement the same ``decide(state)`` protocol."""
+
+    name = "react"
+
+    def __init__(self, planner: ExperimentPlanner | None = None) -> None:
+        self.planner = planner or ExperimentPlanner()
+
+    async def decide(self, state: ExperimentState) -> PlannerDecision:
+        return (await self.planner.decide(state)).output
