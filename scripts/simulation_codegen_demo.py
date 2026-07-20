@@ -23,14 +23,22 @@ from dlens.tools._sandbox import LocalSandbox, get_sandbox
 async def main() -> int:
     parser = argparse.ArgumentParser(description="V2 simulation code-generation demo")
     parser.add_argument("--live", action="store_true", help="Use OpenAI + the Docker sandbox.")
+    parser.add_argument(
+        "--model", default=None,
+        help="OpenAI model for --live (default: the agent's default, gpt-4o-mini; "
+        "gpt-5.2 recommended for reliable code generation).",
+    )
     args = parser.parse_args()
 
     spec = SimSpec(description=SYNTHETIC_PROMPTS[0]["description"])
     print(f"PROMPT ({SYNTHETIC_PROMPTS[0]['name']}):\n  {spec.description}\n")
 
     if args.live:
-        print("Mode: LIVE — OpenAI gpt-4o-mini + Docker sandbox (dlens-lenstronomy:latest)")
-        agent = SimulationCodegenAgent(sandbox=get_sandbox("docker"))
+        from dlens.agents._models import OpenAIModel
+
+        model = OpenAIModel(model_name=args.model) if args.model else None
+        print(f"Mode: LIVE — OpenAI {args.model or 'gpt-4o-mini'} + Docker sandbox (dlens-lenstronomy:latest)")
+        agent = SimulationCodegenAgent(model=model, sandbox=get_sandbox("docker"))
     else:
         print("Mode: OFFLINE — scripted model + LocalSandbox (no LLM, no Docker)")
         agent = SimulationCodegenAgent(model=make_scripted_codegen_model(), sandbox=LocalSandbox())
