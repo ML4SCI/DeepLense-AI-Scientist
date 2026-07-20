@@ -1,0 +1,42 @@
+name: CI (experiment loop)
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint-and-test:
+    name: Lint + offline tests (planner / loop / report)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync
+
+      # Temporary: pydantic-ai 2.0.0 removed the deprecated `OpenAIModel` alias that
+      # the framework's agents/_models.py still imports, which breaks `import dlens`.
+      # Pin <2 until that import is updated upstream (one-line: use OpenAIChatModel).
+      - name: Pin compatible pydantic-ai (temporary upstream workaround)
+        run: uv pip install 'pydantic-ai<2'
+
+      # Lint is scoped to the modules added by this PR.
+      - name: Lint (ruff, new modules only)
+        run: >
+          uv run ruff check
+          src/dlens/prompts/_planner.py
+          src/dlens/schemas/_report.py
+          src/dlens/agents/_experiment_planner.py
+          src/dlens/agents/_report.py
+          src/dlens/agents/_experiment_loop.py
+          src/dlens/agents/_scripted_planner.py
+          tests/test_experiment_loop.py
+
+      - name: Tests (fully offline)
+        run: uv run pytest
