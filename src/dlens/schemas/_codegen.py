@@ -38,8 +38,13 @@ class ValidationResult(BaseModel):
 
 
 class CodegenResult(BaseModel):
-    """Final outcome surfaced to the caller (and, eventually, to Michael)."""
+    """Final outcome surfaced to the caller (and, eventually, to Michael).
 
+    Carries the model's ``reasoning`` (framework convention: every agent output
+    explains itself) from the generation that produced ``code``.
+    """
+
+    reasoning: str = Field(description="The reasoning process of the agent.")
     spec: SimSpec
     code: str = Field(description="The generated lenstronomy script.")
     ok: bool = Field(description="True if validation passed.")

@@ -106,16 +106,20 @@ class SimulationCodegenAgent(DLensBaseAgent):
         """Generate -> run in sandbox -> validate, retrying up to ``max_retries``."""
         last_error: str | None = None
         code = ""
+        reasoning = ""
         validation = ValidationResult(passed=False, message="no attempt made")
         for attempt in range(1, self.max_retries + 1):
-            code = (await self.generate(spec, last_error=last_error)).output.code
+            program = (await self.generate(spec, last_error=last_error)).output
+            code, reasoning = program.code, program.reasoning
             exec_result = self.sandbox.run(code, timeout=self.timeout)
             validation = validate_output(exec_result)
             if validation.passed:
                 return CodegenResult(
-                    spec=spec, code=code, ok=True, attempts=attempt, validation=validation
+                    reasoning=reasoning, spec=spec, code=code, ok=True,
+                    attempts=attempt, validation=validation,
                 )
             last_error = f"{validation.message}\n{exec_result.stderr or exec_result.error or ''}"[:2000]
         return CodegenResult(
-            spec=spec, code=code, ok=False, attempts=self.max_retries, validation=validation
+            reasoning=reasoning, spec=spec, code=code, ok=False,
+            attempts=self.max_retries, validation=validation,
         )

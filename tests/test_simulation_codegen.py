@@ -50,6 +50,8 @@ def test_agent_generate_and_validate_offline():
     assert res.ok and res.validation.passed
     assert res.attempts == 1
     assert res.validation.image_shape == (64, 64)
+    # The model's reasoning is carried through to the final result (framework convention).
+    assert res.reasoning == "scripted offline program"
 
 
 def test_agent_retries_then_succeeds():
@@ -66,6 +68,7 @@ def test_agent_fails_after_max_retries():
     )
     res = asyncio.run(agent.generate_and_validate(SimSpec(description="x")))
     assert not res.ok and res.attempts == 2 and not res.validation.passed
+    assert res.reasoning  # reasoning is carried even when validation fails
 
 
 def test_synthetic_prompts():

@@ -37,7 +37,9 @@ async def main() -> int:
 
     res = await agent.generate_and_validate(spec)
 
-    print("\n--- generated code ---")
+    print("\n--- agent reasoning ---")
+    print(f"  {res.reasoning}")
+    print("--- generated code ---")
     print(res.code)
     print("--- validation ---")
     print(f"  passed: {res.validation.passed} | attempts: {res.attempts}")
