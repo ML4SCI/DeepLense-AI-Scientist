@@ -1,15 +1,13 @@
 from __future__ import annotations
-from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.ollama import OllamaProvider
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.providers.litellm import LiteLLMProvider
-from pydantic_ai.models.outlines import OutlinesModel
-from llama_cpp import Llama
 
 
 # Wrapper for OpenAI model (when you want to use OpenAI API)
-class OpenAIModel(OpenAIModel):
+# pydantic-ai v2 dropped the deprecated `OpenAIModel` alias; base on `OpenAIChatModel`.
+class OpenAIModel(OpenAIChatModel):
     def __init__(self, model_name: str = "gpt-4o-mini"):
         super().__init__(model_name=model_name)
 
@@ -33,6 +31,10 @@ class LlamaCppModel(OpenAIChatModel):
 
 
 # Wrapper for Outlines Llama cpp model - When you want to strictly force output JSON format
+# NOTE: pydantic-ai v2 removed the built-in Outlines integration
+# (`pydantic_ai.models.outlines`). Kept for API stability; imports are lazy so the
+# package still imports, and instantiation raises a clear error until Outlines is
+# re-integrated.
 class OutlinesLlamaCppModel:
     def __init__(
         self,
@@ -42,6 +44,15 @@ class OutlinesLlamaCppModel:
         n_ctx: int = 32768,
         chat_format: str | None = None,
     ):
+        try:
+            from pydantic_ai.models.outlines import OutlinesModel
+        except ModuleNotFoundError as exc:  # pragma: no cover - depends on pydantic-ai version
+            raise RuntimeError(
+                "OutlinesLlamaCppModel is unavailable: pydantic-ai v2 removed the built-in "
+                "Outlines integration (pydantic_ai.models.outlines)."
+            ) from exc
+        from llama_cpp import Llama
+
         self.model = OutlinesModel.from_llamacpp(
             Llama.from_pretrained(
                 repo_id=repo_id,
