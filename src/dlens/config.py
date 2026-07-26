@@ -104,3 +104,28 @@ class ModelSettings:
 def build_model_from_env() -> Model:
     """Build a model from environment variables (defaults to local Ollama qwen3:8b)."""
     return ModelSettings.from_env().build()
+
+
+# --------------------------------------------------------------------------- #
+# Hosted-LLM selection for the AI-Scientist agents (planner / search / judge).
+# Local models hallucinate on structured tool output, so these default to a
+# hosted model: gpt-5.6-luna (chosen over gpt-5.2 — comparable results, faster,
+# ~2-3x cheaper). Override with DLENS_LLM (e.g. DLENS_LLM=gpt-5.2).
+# --------------------------------------------------------------------------- #
+
+DEFAULT_LLM = "gpt-5.6-luna"
+
+
+def build_llm(model_id: str | None = None) -> Model:
+    """Build the hosted LLM for AI-Scientist reasoning (reads OPENAI_API_KEY).
+
+    gpt-5.6* models REQUIRE the OpenAI Responses API: they reject function tools
+    on chat completions when reasoning is enabled (HTTP 400), which breaks
+    pydantic-ai structured output. Other ids use chat completions.
+    """
+    mid = (model_id or os.getenv("DLENS_LLM") or DEFAULT_LLM).strip()
+    if mid.startswith("gpt-5.6"):
+        from pydantic_ai.models.openai import OpenAIResponsesModel
+
+        return OpenAIResponsesModel(mid)
+    return OpenAIChatModel(mid)

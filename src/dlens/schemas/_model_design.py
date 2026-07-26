@@ -11,7 +11,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from dlens.schemas._simulation import SimOutput
 
@@ -47,18 +47,52 @@ class DatasetCharacteristics(BaseModel):
     notes: str = Field(default="", description="Free-form notes (e.g. class names, SNR).")
 
 
-class ArchitectureSpec(BaseModel):
-    """A proposed neural-network architecture (the ``architecture`` slot)."""
+# Families the torch backend can actually construct and train.
+BUILDABLE_FAMILIES = {ArchFamily.RESNET, ArchFamily.CNN}
 
-    name: str = Field(description="Concrete architecture name, e.g. 'resnet18'.")
+
+class ArchitectureSpec(BaseModel):
+    """A proposed neural-network architecture (the ``architecture`` slot).
+
+    ``depths``/``widths`` define the structure per stage; when omitted, the backend
+    falls back to the named preset (e.g. ``resnet18``/``resnet34``). Only
+    ``BUILDABLE_FAMILIES`` can be instantiated — candidate generators must stay
+    inside that space.
+    """
+
+    name: str = Field(description="Concrete architecture label, e.g. 'resnet18' or 'cnn_s3w64'.")
     family: ArchFamily = Field(description="Architecture family.")
     input_shape: tuple[int, int] = Field(description="(H, W) the model expects.")
     channels: int = Field(default=1, description="Input channels.")
     num_classes: Optional[int] = Field(default=None, description="Output classes, if classification.")
+    depths: Optional[list[int]] = Field(
+        default=None,
+        description="Blocks (resnet) or convs (cnn) per stage; 2-4 stages, 1-6 each.",
+    )
+    widths: Optional[list[int]] = Field(
+        default=None, description="Channels per stage (8-1024); same length as depths."
+    )
     physics_informed: bool = Field(
         default=False, description="Whether physics priors (e.g. equivariance) are used."
     )
     rationale: str = Field(default="", description="Why this architecture fits the data/task.")
+
+    @model_validator(mode="after")
+    def _check_structure(self) -> "ArchitectureSpec":
+        if (self.depths is None) != (self.widths is None):
+            raise ValueError("depths and widths must be given together")
+        if self.depths is not None:
+            if not (2 <= len(self.depths) <= 4) or len(self.depths) != len(self.widths):
+                raise ValueError("need 2-4 stages with matching depths/widths lengths")
+            if any(not (1 <= d <= 6) for d in self.depths):
+                raise ValueError("each stage depth must be 1-6")
+            if any(not (8 <= w <= 1024) for w in self.widths):
+                raise ValueError("each stage width must be 8-1024")
+        return self
+
+    def is_buildable(self) -> bool:
+        """True if the torch backend can construct this spec."""
+        return self.family in BUILDABLE_FAMILIES
 
 
 class TrainingConfig(BaseModel):

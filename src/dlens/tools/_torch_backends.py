@@ -44,8 +44,13 @@ def _device(torch):
     return torch.device("cpu")
 
 
-def _build_resnet(arch: ArchitectureSpec, dropout: float = 0.0):
-    """A compact ResNet built from the spec (name -> depth; channels; classes).
+def build_model(arch: ArchitectureSpec, dropout: float = 0.0):
+    """Build a real torch model from the spec (only BUILDABLE_FAMILIES).
+
+    * ``resnet`` — BasicBlock ResNet; stages from ``depths``/``widths`` (falls back
+      to the named preset, e.g. resnet18/resnet34, with classic widths).
+    * ``cnn``    — VGG-like plain convnet: ``depths[i]`` 3x3 convs at ``widths[i]``
+      channels per stage, maxpool between stages.
 
     A Dropout layer is always present before the classifier (p=0 disables it) so
     checkpoint state_dict indices are stable regardless of the dropout setting.
@@ -53,9 +58,31 @@ def _build_resnet(arch: ArchitectureSpec, dropout: float = 0.0):
     _require_torch()
     from torch import nn
 
-    blocks = _BLOCKS_BY_NAME.get(arch.name.lower(), (2, 2, 2, 2))
+    from dlens.schemas._model_design import ArchFamily
+
+    if not arch.is_buildable():
+        raise ValueError(f"Architecture family '{arch.family.value}' is not buildable.")
+
     num_classes = arch.num_classes or 2
     in_ch = arch.channels or 1
+    if arch.depths is not None:
+        blocks, widths = tuple(arch.depths), tuple(arch.widths)
+    else:
+        blocks = _BLOCKS_BY_NAME.get(arch.name.lower(), (2, 2, 2, 2))
+        widths = (64, 128, 256, 512)[: len(blocks)]
+
+    if arch.family == ArchFamily.CNN:
+        layers: list = []
+        cin = in_ch
+        for d, w in zip(blocks, widths):
+            for _ in range(d):
+                layers += [nn.Conv2d(cin, w, 3, 1, 1, bias=False), nn.BatchNorm2d(w),
+                           nn.ReLU(inplace=True)]
+                cin = w
+            layers.append(nn.MaxPool2d(2))
+        layers += [nn.AdaptiveAvgPool2d(1), nn.Flatten(), nn.Dropout(dropout),
+                   nn.Linear(widths[-1], num_classes)]
+        return nn.Sequential(*layers)
 
     class BasicBlock(nn.Module):
         def __init__(self, cin, cout, stride=1):
@@ -82,21 +109,24 @@ def _build_resnet(arch: ArchitectureSpec, dropout: float = 0.0):
         layers += [BasicBlock(cout, cout) for _ in range(n - 1)]
         return nn.Sequential(*layers)
 
-    widths = (64, 128, 256, 512)
-    return nn.Sequential(
+    stem = [
         nn.Conv2d(in_ch, widths[0], 7, 2, 3, bias=False),
         nn.BatchNorm2d(widths[0]),
         nn.ReLU(inplace=True),
         nn.MaxPool2d(3, 2, 1),
-        stage(widths[0], widths[0], blocks[0], 1),
-        stage(widths[0], widths[1], blocks[1], 2),
-        stage(widths[1], widths[2], blocks[2], 2),
-        stage(widths[2], widths[3], blocks[3], 2),
-        nn.AdaptiveAvgPool2d(1),
-        nn.Flatten(),
-        nn.Dropout(dropout),
-        nn.Linear(widths[3], num_classes),
-    )
+    ]
+    stages = []
+    cin = widths[0]
+    for s, (d, w) in enumerate(zip(blocks, widths)):
+        stages.append(stage(cin, w, d, 1 if s == 0 else 2))
+        cin = w
+    head = [nn.AdaptiveAvgPool2d(1), nn.Flatten(), nn.Dropout(dropout),
+            nn.Linear(widths[-1], num_classes)]
+    return nn.Sequential(*stem, *stages, *head)
+
+
+# Backwards-compatible alias (train/infer call sites predate the cnn family).
+_build_resnet = build_model
 
 
 def _load_images(ref: DatasetRef) -> tuple[np.ndarray, np.ndarray]:

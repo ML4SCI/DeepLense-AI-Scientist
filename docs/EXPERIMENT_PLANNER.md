@@ -59,10 +59,28 @@ experiments should answer.
 (`predictions`/`probabilities`/`true_labels`) are excluded; the planner reasons over
 aggregate metrics. Full arrays stay in `ExperimentState` (code-side, authoritative).
 
+## Combined design (added 2026-07-25, per Michael)
+
+The planner now has TWO cooperating stages:
+
+1. **Tree-based architecture search** (`agents/_architecture_search.py`): LLM
+   generates ~10 buildable candidates -> LLM-as-judge takes the top-4 -> short REAL
+   training ranks them -> code-side pruning keeps the best (one optional refinement
+   round of variants). Candidates are constrained to the torch backend's buildable
+   space (`resnet`/`cnn` with typed depths/widths) and validated code-side.
+2. **Closed-loop hyperparameter tuning** (this document's ReAct loop) then tunes
+   the winning architecture.
+
+Orchestrated end to end by `scripts/run_ai_scientist.py` (all knobs configurable,
+every phase timed). LLM default is gpt-5.6-luna via the Responses API
+(`dlens.config.build_llm`; gpt-5.2 switchable with DLENS_LLM).
+
 ## Results
 
 See [EXPERIMENT_PLANNER_RESULTS.md](./EXPERIMENT_PLANNER_RESULTS.md) for the real
-closed-loop run on DeepLense Model_I data (overfitting-reduction trajectory).
+closed-loop run on DeepLense Model_I data (overfitting-reduction trajectory), and
+[ARCHITECTURE_SEARCH_RESULTS.md](./ARCHITECTURE_SEARCH_RESULTS.md) for the combined
+tree-search + tuning runs with the per-phase runtime breakdown.
 
 ## Open items (for discussion)
 
