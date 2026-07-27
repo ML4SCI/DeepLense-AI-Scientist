@@ -30,6 +30,10 @@ def make_lens(cls: str) -> DeepLens:
 
 def main() -> None:
     cls, count, outdir = sys.argv[1], int(sys.argv[2]), sys.argv[3]
+    # Optional explicit seed (4th arg) for a documented, distinct generation
+    # lineage (e.g. held-out test sets). Default: fresh per-process entropy.
+    if len(sys.argv) > 4:
+        np.random.seed(int(sys.argv[4]))
     setup = CLASS_SETUP[cls]
     t0 = time.time()
     done = 0
