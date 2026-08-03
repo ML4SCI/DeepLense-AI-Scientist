@@ -190,6 +190,7 @@ def format_plan(cfg: SimConfig) -> str:
     model = {
         "Model_I": "Model_I (150x150 px, Gaussian PSF)",
         "Model_II": "Model_II (64x64 px, Euclid instrument)",
+        "Model_III": "Model_III (64x64 px, HST instrument)",
     }[cfg.model_config_name.value]
     bar = "=" * 52
     return (
