@@ -60,3 +60,14 @@ def test_describe_is_key_safe(monkeypatch):
     desc = ModelSettings.from_env().describe()
     assert "super-secret" not in desc
     assert "api_key=set" in desc
+
+
+def test_openai_provider_defaults_to_gpt_4o_mini(monkeypatch):
+    _clear(monkeypatch)
+    monkeypatch.setenv("DLENS_MODEL_PROVIDER", "openai")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    s = ModelSettings.from_env()
+    assert s.provider == "openai"
+    assert s.model == "gpt-4o-mini"  # provider-specific default, not the ollama tag
+    assert s.api_key == "sk-test"
+    build_model_from_env()  # constructs without a network call
