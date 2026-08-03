@@ -21,6 +21,7 @@ from dlens.agents._param_extraction import ParamExtractionAgent
 from dlens.agents._simulation_codegen import SimulationCodegenAgent
 from dlens.schemas._codegen import SimSpec
 from dlens.schemas._lens_params import LensParameterSet, ParamValidationResult, TwoStageResult
+from dlens.tools._code_param_check import compare_code_to_params
 from dlens.tools._param_validator import ValidationRanges, validate_parameters
 
 
@@ -48,11 +49,15 @@ class TwoStageSimulationAgent:
         codegen: Optional[SimulationCodegenAgent] = None,
         ranges: Optional[ValidationRanges] = None,
         max_extraction_retries: int = 3,
+        max_codegen_passes: int = 2,
     ) -> None:
         self.extractor = extractor or ParamExtractionAgent()
         self.codegen = codegen or SimulationCodegenAgent()
         self.ranges = ranges
         self.max_extraction_retries = max_extraction_retries
+        # Outer passes: a pass whose script diverges from the validated
+        # parameters (AST diff) is regenerated with the specific divergences.
+        self.max_codegen_passes = max_codegen_passes
 
     async def run(self, spec: SimSpec) -> TwoStageResult:
         query = spec.description
@@ -77,10 +82,32 @@ class TwoStageSimulationAgent:
                 codegen=None, ok=False,
             )
 
-        codegen_spec = SimSpec(description=spec.description, notes=params_to_codegen_notes(params))
-        codegen_result = await self.codegen.generate_and_validate(codegen_spec)
+        # Codegen + verification loop: the sandbox proves the script runs; the
+        # AST diff proves it used the validated parameters. Divergence triggers
+        # a fresh pass carrying the exact per-field feedback (bounded).
+        base_notes = params_to_codegen_notes(params)
+        notes = base_notes
+        codegen_result = None
+        comparison = None
+        for cpass in range(1, self.max_codegen_passes + 1):
+            codegen_spec = SimSpec(description=spec.description, notes=notes)
+            codegen_result = await self.codegen.generate_and_validate(codegen_spec)
+            if not codegen_result.ok:
+                break
+            comparison = compare_code_to_params(codegen_result.code, params)
+            if comparison.passed:
+                break
+            notes = (
+                base_notes
+                + "\n\nThe previous script did not verifiably use the validated "
+                "parameters:\n- "
+                + "\n- ".join(comparison.messages)
+                + "\nRewrite the script using the validated values as literals."
+            )
         return TwoStageResult(
             reasoning=reasoning, spec=spec, params=params,
             param_validation=validation, extraction_attempts=attempt,
-            codegen=codegen_result, ok=codegen_result.ok,
+            codegen=codegen_result, code_param_comparison=comparison,
+            codegen_passes=cpass,
+            ok=bool(codegen_result.ok and comparison is not None and comparison.passed),
         )

@@ -8,7 +8,11 @@ import copy
 
 from dlens.agents._param_extraction import ExtractedParameters, ParamExtractionAgent
 from dlens.agents._scripted_codegen import make_scripted_codegen_model
-from dlens.agents._scripted_param_extraction import GOOD_PARAMS, make_scripted_extraction_model
+from dlens.agents._scripted_param_extraction import (
+    GOOD_PARAMS,
+    make_scripted_extraction_model,
+    render_offline_program,
+)
 from dlens.agents._simulation_codegen import SimulationCodegenAgent
 from dlens.agents._two_stage_codegen import TwoStageSimulationAgent, params_to_codegen_notes
 from dlens.schemas._codegen import SimSpec
@@ -32,7 +36,8 @@ def test_validator_passes_canonical_params():
     res = validate_parameters(_params())
     assert res.passed, res.messages
     assert res.messages == []
-    assert res.snr_estimate is not None and res.snr_estimate >= 25.0
+    # Inside the real-data acceptance band (measured on real Model_I images).
+    assert res.snr_estimate is not None and 14.0 <= res.snr_estimate <= 60.0
 
 
 def test_validator_redshift_order():
@@ -101,13 +106,20 @@ def test_validator_mass_ranges():
     assert res.checks["vortex_mass"] is False
 
 
-def test_validator_snr_target():
+def test_validator_snr_band():
     dim = copy.deepcopy(GOOD_PARAMS)
     dim["kwargs_source"][0]["amp"] = 0.001
     res = validate_parameters(LensParameterSet.model_validate(dim))
     assert res.checks["snr"] is False
-    assert res.snr_estimate is not None and res.snr_estimate < 25.0
+    assert res.snr_estimate is not None and res.snr_estimate < 14.0
     assert any("SNR" in m for m in res.messages)
+
+    runaway = copy.deepcopy(GOOD_PARAMS)
+    runaway["kwargs_source"][0]["amp"] = 1e5
+    res = validate_parameters(LensParameterSet.model_validate(runaway))
+    assert res.checks["snr"] is False
+    assert res.snr_estimate is not None and res.snr_estimate > 60.0
+    assert any("runaway" in m for m in res.messages)
 
 
 def test_validator_snr_skipped_when_noiseless():
@@ -165,13 +177,16 @@ def test_two_stage_happy_path():
     agent = TwoStageSimulationAgent(
         extractor=ParamExtractionAgent(model=make_scripted_extraction_model()),
         codegen=SimulationCodegenAgent(
-            model=make_scripted_codegen_model(), sandbox=LocalSandbox()
+            model=make_scripted_codegen_model(code=render_offline_program(GOOD_PARAMS)),
+            sandbox=LocalSandbox(),
         ),
     )
     res = asyncio.run(agent.run(SimSpec(description="canonical lens")))
     assert res.ok
     assert res.param_validation.passed and res.extraction_attempts == 1
     assert res.codegen is not None and res.codegen.ok
+    # The generated script verifiably used the validated parameters.
+    assert res.code_param_comparison is not None and res.code_param_comparison.passed
     # The validated parameters are injected verbatim into the codegen spec seam.
     assert "theta_E" in params_to_codegen_notes(res.params)
 
@@ -180,7 +195,8 @@ def test_two_stage_retries_extraction_on_validation_failure():
     agent = TwoStageSimulationAgent(
         extractor=ParamExtractionAgent(model=make_scripted_extraction_model(fail_first=True)),
         codegen=SimulationCodegenAgent(
-            model=make_scripted_codegen_model(), sandbox=LocalSandbox()
+            model=make_scripted_codegen_model(code=render_offline_program(GOOD_PARAMS)),
+            sandbox=LocalSandbox(),
         ),
     )
     res = asyncio.run(agent.run(SimSpec(description="x")))

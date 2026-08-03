@@ -130,8 +130,42 @@ class ParamValidationResult(BaseModel):
     )
 
 
+class FieldComparison(BaseModel):
+    """One field where the generated code diverged from the validated set."""
+
+    field: str = Field(description="Dotted field path, e.g. 'kwargs_lens[0].theta_E'.")
+    expected: object = Field(description="The validated value.")
+    actual: object = Field(description="The value found in the generated script.")
+
+
+class CodeParamComparison(BaseModel):
+    """Structured diff of the generated script against the validated parameters.
+
+    Produced by AST parsing (tools/_code_param_check.py). ``passed`` requires
+    every checked field to match: diverged, missing, AND unresolved all block —
+    a runtime-computed value is reported as unresolved, never assumed correct.
+    """
+
+    passed: bool = Field(description="True only if every checked field matched.")
+    matched: list[str] = Field(default_factory=list, description="Fields verified equal.")
+    diverged: list[FieldComparison] = Field(
+        default_factory=list, description="Fields with a different value in the script."
+    )
+    missing: list[str] = Field(
+        default_factory=list, description="Fields/blocks not found in the script."
+    )
+    unresolved: list[str] = Field(
+        default_factory=list,
+        description="Fields whose script value is computed at runtime (not statically "
+        "verifiable).",
+    )
+    messages: list[str] = Field(
+        default_factory=list, description="Actionable per-field feedback for the retry."
+    )
+
+
 class TwoStageResult(BaseModel):
-    """Outcome of the two-stage path: extract -> validate -> (codegen).
+    """Outcome of the two-stage path: extract -> validate -> codegen -> verify.
 
     Carries the extraction ``reasoning`` (framework convention) and the final
     ``CodegenResult`` when the pipeline reached the code-generation stage.
@@ -147,4 +181,17 @@ class TwoStageResult(BaseModel):
     codegen: Optional[CodegenResult] = Field(
         default=None, description="Code-generation outcome; None if extraction never validated."
     )
-    ok: bool = Field(description="True if parameters validated AND generated code passed.")
+    code_param_comparison: Optional[CodeParamComparison] = Field(
+        default=None,
+        description="AST diff of the final script vs the validated parameters; "
+        "None if codegen never produced a passing script.",
+    )
+    codegen_passes: int = Field(
+        default=0,
+        description="Outer codegen passes (a fresh pass is triggered when the "
+        "script diverges from the validated parameters).",
+    )
+    ok: bool = Field(
+        description="True if parameters validated, generated code passed the sandbox, "
+        "AND the script verifiably used the validated parameters."
+    )

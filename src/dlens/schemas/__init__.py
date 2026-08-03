@@ -3,6 +3,8 @@
 
 from dlens.schemas._codegen import CodegenResult, SimSpec, ValidationResult
 from dlens.schemas._lens_params import (
+    CodeParamComparison,
+    FieldComparison,
     InstrumentBlock,
     LensParameterSet,
     ParamValidationResult,
@@ -18,5 +20,7 @@ __all__ = [
     "InstrumentBlock",
     "PSFBlock",
     "ParamValidationResult",
+    "CodeParamComparison",
+    "FieldComparison",
     "TwoStageResult",
 ]
