@@ -29,7 +29,7 @@ LENSTRONOMY API CHEAT-SHEET (verified against the sandbox's installed version, l
     kwargs_data = sim_util.data_configure_simple(numPix, deltaPix, exposure_time=None, background_rms=None)
     data_class = ImageData(**kwargs_data)
 - PSF (use fwhm; there is NO 'sigma' argument):
-    psf_class = PSF(psf_type='GAUSSIAN', fwhm=0.15, pixel_size=delta_pix)
+    psf_class = PSF(psf_type='GAUSSIAN', fwhm=0.15, pixel_size=deltaPix)
 - Models (first arg is the list; kwargs are LISTS of dicts, one per profile):
     lens_model_class = LensModel(lens_model_list=['SIE', 'SHEAR'])
     kwargs_lens = [{'theta_E': ..., 'e1': ..., 'e2': ..., 'center_x': 0, 'center_y': 0},
