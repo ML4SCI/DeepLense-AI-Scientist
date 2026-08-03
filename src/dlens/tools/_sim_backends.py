@@ -137,7 +137,9 @@ class MockBackend:
 
     def _one(self, config: SimConfig, n: int, rng: np.random.Generator) -> np.ndarray:
         yy, xx = np.mgrid[0:n, 0:n].astype(float)
-        cx = cy = (n - 1) / 2.0 + rng.normal(0, n * 0.01, size=2)[0]
+        jitter_x, jitter_y = rng.normal(0, n * 0.01, size=2)
+        cx = (n - 1) / 2.0 + jitter_x
+        cy = (n - 1) / 2.0 + jitter_y
         r = np.hypot(xx - cx, yy - cy)
 
         r0 = n * 0.30

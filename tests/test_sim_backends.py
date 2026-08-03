@@ -88,3 +88,49 @@ def test_runner_writes_expected_layout(tmp_path: Path):
     assert meta["image_shape"] == [150, 150]
     assert meta["config"]["substructure_type"] == "vortex"
     assert meta["config"]["axion_mass"] == 1e-23
+
+
+def test_mock_center_jitter_is_independent_in_x_and_y():
+    # Regression (PR #8 review): cx/cy used the same normal deviate, so the
+    # ring centre only ever moved along the diagonal.
+    from dlens.tools import _sim_backends
+
+    captured = {}
+    original = np.hypot
+
+    def spy(dx, dy):
+        captured["cx"], captured["cy"] = float(dx[0, 0]), float(dy[0, 0])
+        return original(dx, dy)
+
+    _sim_backends.np.hypot, hypot = spy, _sim_backends.np.hypot
+    try:
+        MockBackend(seed=7).generate(_cfg(num_images=1))
+    finally:
+        _sim_backends.np.hypot = hypot
+    # (0,0) pixel offsets equal -cx and -cy; identical jitter would make them equal.
+    assert captured["cx"] != captured["cy"]
+
+
+def test_runner_run_id_collision_is_explicit(tmp_path: Path, monkeypatch):
+    from dlens.tools import _sim_runner
+
+    # Every candidate id collides with an existing directory: the runner must
+    # raise rather than silently reuse/overwrite the existing run's outputs.
+    class _FixedUUID:
+        hex = "deadbeefcafe"
+
+    (tmp_path / "deadbeef").mkdir()
+    sentinel = tmp_path / "deadbeef" / "existing.npy"
+    sentinel.write_bytes(b"do not overwrite")
+    monkeypatch.setattr(_sim_runner.uuid, "uuid4", lambda: _FixedUUID())
+
+    with pytest.raises(RuntimeError, match="unique run directory"):
+        execute_simulation(_cfg(), backend=MockBackend(seed=0), output_root=tmp_path,
+                           make_preview=False)
+    assert sentinel.read_bytes() == b"do not overwrite"
+
+    # With real UUIDs a collision simply retries onto a fresh id.
+    monkeypatch.undo()
+    out = execute_simulation(_cfg(), backend=MockBackend(seed=0), output_root=tmp_path,
+                             make_preview=False)
+    assert out.run_id != "deadbeef" and (tmp_path / out.run_id).is_dir()

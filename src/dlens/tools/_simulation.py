@@ -43,7 +43,9 @@ def register_simulation_tool(agent: Agent) -> None:
         Substructure types: ``no_sub`` (smooth), ``cdm`` (cold-dark-matter
         subhalos), ``vortex`` (axion vortex — ``axion_mass`` in eV is required,
         typically 1e-24 to 1e-22). Model_I -> 150x150 simple PSF; Model_II ->
-        64x64 Euclid-realistic. The source must sit behind the lens
+        64x64 Euclid-realistic; Model_III -> 64x64 HST-realistic. Model_IV is
+        NOT supported (it needs real galaxy source images outside this
+        pipeline). The source must sit behind the lens
         (``z_source`` > ``z_halo``).
 
         Args:
