@@ -40,7 +40,11 @@ def validate_output(result: ExecResult) -> ValidationResult:
         "non_trivial": False,
     }
     if not result.output_path:
-        return ValidationResult(passed=False, checks=checks, message=result.error or "no output")
+        if result.ok:
+            msg = "script ran (exit 0) but wrote no output to the DLENS_OUTPUT path"
+        else:
+            msg = result.error or "process failed before producing output"
+        return ValidationResult(passed=False, checks=checks, message=msg)
     try:
         arr = np.load(result.output_path)
     except Exception as exc:  # noqa: BLE001 - report any load failure

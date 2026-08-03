@@ -31,7 +31,8 @@ class ExecResult:
     """Result of running a generated script in a sandbox."""
 
     ok: bool
-    returncode: int = 0
+    # -1 = sentinel: no process return code exists (docker missing, timeout, never ran)
+    returncode: int = -1
     stdout: str = ""
     stderr: str = ""
     output_path: Optional[str] = None  # host path to the produced .npy, if any
@@ -66,11 +67,13 @@ class LocalSandbox:
         except subprocess.TimeoutExpired:
             return ExecResult(ok=False, error=f"timed out after {timeout}s")
         produced = out if os.path.exists(out) else None
-        ok = proc.returncode == 0 and produced is not None
+        # `ok` means the process exited successfully; whether it produced output is
+        # reported separately via `output_path` (validation checks both).
+        ok = proc.returncode == 0
         return ExecResult(
             ok=ok, returncode=proc.returncode, stdout=proc.stdout, stderr=proc.stderr,
             output_path=produced,
-            error=None if ok else "non-zero exit or no output produced",
+            error=None if ok else f"process exited with code {proc.returncode}",
         )
 
 
@@ -101,11 +104,13 @@ class DockerSandbox:
         except subprocess.TimeoutExpired:
             return ExecResult(ok=False, error=f"timed out after {timeout}s")
         produced = host_out if os.path.exists(host_out) else None
-        ok = proc.returncode == 0 and produced is not None
+        # `ok` means the container process exited successfully; output existence is
+        # reported separately via `output_path` (validation checks both).
+        ok = proc.returncode == 0
         return ExecResult(
             ok=ok, returncode=proc.returncode, stdout=proc.stdout, stderr=proc.stderr,
             output_path=produced,
-            error=None if ok else "docker run failed or produced no output",
+            error=None if ok else f"docker run exited with code {proc.returncode}",
         )
 
 
