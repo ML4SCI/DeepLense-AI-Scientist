@@ -21,7 +21,9 @@ from dlens.schemas._codegen import CodegenResult, SimSpec, ValidationResult
 from dlens.tools._sandbox import ExecResult, Sandbox, get_sandbox
 
 # Code generation needs a capable model; local Ollama models hallucinate here.
-DEFAULT_CODEGEN_MODEL = "gpt-4o-mini"
+# gpt-5.2 matches the paper protocol and works on chat completions (the Responses
+# API is only required for the gpt-5.6 family).
+DEFAULT_CODEGEN_MODEL = "gpt-5.2"
 
 
 class GeneratedProgram(OutputSchema):
