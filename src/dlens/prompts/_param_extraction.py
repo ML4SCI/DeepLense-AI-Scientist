@@ -37,11 +37,12 @@ PHYSICAL DEFAULTS (DeepLense conventions; use unless the request overrides):
 - z_lens=0.5, z_source=1.0 (source MUST be behind the lens).
 - Lens: SIE with theta_E~1.0 arcsec, mild ellipticity |e|<=0.3; add SHEAR only
   if external shear is requested.
-- Source: SERSIC_ELLIPSE, R_sersic~0.3, n_sersic 1-4, amp sized so the
-  detection is solid (target integrated SNR >= 25). Anchors for R_sersic~0.3
-  and background_rms~0.01: amp>=25 at 565 s (Euclid-like), amp>=12 at 5400 s
-  (HST-like); scale amp up for shorter exposures, higher background, or finer
-  pixel scales.
+- Source: SERSIC_ELLIPSE, R_sersic~0.3, n_sersic 1-4, amp sized so the lensed
+  peak SNR lands in the band real DeepLenseSim images occupy (~15-22; the
+  validator accepts 14-60). Anchors for background_rms~0.01: amp~20 for
+  Model_I-like (0.05"/px, 1000-3000 s); amp>=12 for Euclid-like (565 s);
+  amp>=6 for HST-like (5400 s). Scale amp up for shorter exposures, higher
+  background, or finer pixel scales — and do NOT overshoot by more than ~3x.
 - Halo mass 1e12 M_sun; vortex substructure => axion_mass (1e-24..1e-22 eV) and
   vortex_mass~3e10 M_sun. Record these in the metadata fields when the request
   is framed in DeepLense terms.

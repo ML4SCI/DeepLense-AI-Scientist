@@ -6,15 +6,18 @@ that this step is tractable and reproducible. Every range is configurable via
 ``ValidationRanges`` and every failure produces a specific, actionable message
 that gets fed back to the extraction agent's retry.
 
-Range provenance is cited per field below. Three sources:
-  * "DeepLenseSim recipe" — values used by the Model_I–III scripts / the V1
-    SimConfig schema (halo 1e12 M_sun, z 0.5/1.0, axion 1e-24..1e-22 eV,
-    vortex 3e10 M_sun, grids 150 px @ 0.05" and 64 px).
+Range provenance is cited per field below. Sources, strongest first:
+  * "recipe <file>:<line>" — the ACTUAL values/draws in DeepLenseSim's code
+    (the local mwt5345/DeepLenseSim checkout; lens.py + Model_*/sim_*.py).
+  * "measured" — statistics measured on 900-2,400 real Model_I images from
+    ~/Personal/GSoC/deeplense_data (generated with the unmodified recipe).
   * "lenstronomy 1.9.2" — introspected library facts (profile param_names,
-    ObservationConfig band values: HST 0.08"/5400 s, Euclid 0.101"/565 s).
-  * "heuristic — needs Lucca's distributions" — placeholder bounds to be
-    replaced when Lucca's published parameter distributions arrive (Einstein
-    radius by redshift, ellipticity, Sersic index, target SNR >= ~25).
+    ObservationConfig band values; no Roman config exists in 1.9.2 — the
+    available classes are Euclid, HST, LSST, DES, ZTF).
+  * "Collett 2015 (LensPop)" — verified population statistics used as
+    corroboration only (Euclid-discoverable lenses: theta_E ~ 0.66 +/- 0.40").
+  * "heuristic" — still a guess; needs Lucca's distributions. OM10 redshift
+    medians could not be verified precisely, so redshift guards stay heuristic.
 """
 
 from __future__ import annotations
@@ -42,76 +45,92 @@ PROFILE_PARAMS: dict[str, list[str]] = {
 
 @dataclass
 class ValidationRanges:
-    """Configurable bounds. Defaults cite their source; tighten when Lucca's
-    distributions arrive."""
+    """Configurable bounds. Defaults cite their source; see module docstring
+    for the provenance categories."""
 
-    # DeepLenseSim recipe: z_halo=0.5, z_gal=1.0; V1 SimConfig allows lens z<5, source z<10.
+    # heuristic guards: the recipe FIXES z_halo=0.5, z_gal=1.0
+    # (recipe deeplense/lens.py:37 constructor defaults).
     z_lens_max: float = 5.0
     z_source_max: float = 10.0
-    # Galaxy-scale strong lenses. Heuristic — needs Lucca's Einstein-radius-by-
-    # redshift distribution (canonical 1e12 M_sun halo at z=0.5/1.0 gives ~1").
-    theta_e_min: float = 0.1
-    theta_e_max: float = 10.0
-    # lenstronomy e1/e2 convention: |e|<0.5 keeps axis ratio q>~1/3.
-    # Heuristic — needs Lucca's ellipticity distribution.
+    # DERIVED: the recipe's own mass_to_radius (recipe deeplense/lens.py:69-101)
+    # maps the halo-mass rails below to theta_E at the recipe redshifts:
+    # 1e10 -> 0.128", 1e12 -> 1.281" (canonical), 1e14 -> 12.8".
+    # Corroboration: Collett 2015 (LensPop) Euclid-discoverable population has
+    # theta_E ~ 0.66 +/- 0.40" — comfortably inside this band.
+    theta_e_min: float = 0.12
+    theta_e_max: float = 13.0
+    # heuristic (|e|<0.5 keeps axis ratio q>~1/3); the recipe fixes lens
+    # (e1,e2)=(0.1,0) (recipe deeplense/lens.py:113) and source (-0.1,0.1)
+    # (recipe deeplense/lens.py:196) — points, not a range.
     ellipticity_max: float = 0.5
-    # Sersic index: lenstronomy's own profile bounds use ~0.36 as the numerical
-    # floor; 8 covers de Vaucouleurs-plus. Heuristic upper — needs Lucca.
+    # floor = lenstronomy Sersic numerical validity (~0.36); upper heuristic.
+    # The recipe fixes n_sersic=1 (recipe deeplense/lens.py:196).
     n_sersic_min: float = 0.36
     n_sersic_max: float = 8.0
-    # Grid sanity. DeepLenseSim recipes: Model_I 150 px @ 0.05"; Model_II/III
-    # 64 px; lenstronomy 1.9.2 ObservationConfigs: Euclid 0.101", HST 0.08".
+    # guards around the recipe grids: 150 px (recipe deeplense/lens.py:231)
+    # and 64 px (recipe deeplense/lens.py:295).
     numpix_min: int = 16
     numpix_max: int = 1024
+    # guards spanning the recipe's 0.05"/px (recipe deeplense/lens.py:232) and
+    # lenstronomy 1.9.2 ObservationConfig pixel scales: HST 0.08, Euclid 0.101,
+    # LSST 0.2, DES 0.263 (introspected; margins heuristic).
     deltapix_min: float = 0.01
     deltapix_max: float = 0.5
-    # DeepLenseSim recipe: canonical halo 1e12 M_sun (eval-suite variations
-    # span 5e11–3e12); order-of-magnitude guard rails around that.
+    # heuristic rails around the FIXED recipe halo 1e12 M_sun
+    # (recipe Model_I/sim_no_sub.py:13, same in cdm/axion and Model_II/III).
     halo_mass_min: float = 1e10
     halo_mass_max: float = 1e14
-    # DeepLenseSim recipe / V1 SimConfig: axion mass typically 1e-24..1e-22 eV.
+    # DERIVED exactly: the recipe draws axion mass 10**U(-24, -22) eV
+    # (recipe Model_I/sim_axion.py:12).
     axion_mass_min: float = 1e-24
     axion_mass_max: float = 1e-22
-    # DeepLenseSim recipe: canonical vortex 3e10 M_sun (eval variation 1e10).
+    # heuristic rails around the FIXED recipe vortex 3e10 M_sun
+    # (recipe Model_I/sim_axion.py:17).
     vortex_mass_min: float = 1e9
     vortex_mass_max: float = 1e12
-    # Lucca's pipeline targets SNR >= ~25 (meeting 2026-08-01).
-    # The estimator below is an aperture-integrated proxy — heuristic until
-    # Lucca's exact SNR definition arrives.
-    snr_min: float = 25.0
+    # MEASURED: peak SNR of 900 real Model_I images: median 18.1,
+    # IQR [16.3, 20.1], p5 14.8, p95 22.0. snr_min = p5 rounded down (the
+    # recipe's own lowest-exposure draws sit exactly there); snr_max is a
+    # heuristic runaway-amp guard (~3x measured p95). Note: real recipe images
+    # score ~18, slightly BELOW the nominal "SNR ~25" from the meeting.
+    snr_min: float = 14.0
+    snr_max: float = 60.0
+    # MEASURED calibration: peak-pixel estimate x this factor makes canonical
+    # recipe parameters reproduce the measured median (18.1), and the recipe's
+    # exposure draw 10**U(3,3.5) then predicts [14.8, 21.2] vs measured
+    # [p5 14.8, p95 22.0]. Physically: SIE magnification + PSF of the lensed
+    # peak. Heuristic for very non-recipe geometries.
+    lensing_boost: float = 5.9
     profile_params: dict[str, list[str]] = field(default_factory=lambda: PROFILE_PARAMS)
 
 
-def _estimate_snr(params: LensParameterSet) -> float | None:
-    """Aperture-integrated SNR estimate for the source detection.
+def _estimate_snr(params: LensParameterSet, boost: float) -> float | None:
+    """Peak-pixel SNR of the LENSED image, calibrated against real data.
 
-    Total Sersic flux ~ amp * 2*pi * R_sersic^2 (counts/s; the n-dependent
-    factor is order unity for disks and ignored), integrated over an aperture
-    of radius 2*R_sersic against Poisson + background noise. Lensing
-    magnification is ignored, which makes the estimate conservative. A
-    peak-pixel version of this check was an order of magnitude too strict
-    against real gpt-5.2 extractions (textbook amp values scored SNR ~1-4).
-    Heuristic — replace with Lucca's SNR definition when his distributions
-    arrive.
+    peak counts ~ amp * deltaPix^2 * exposure_time * ``boost``, where boost is
+    the empirical amplification of the observed peak by SIE lensing (+PSF) —
+    calibrated so canonical Model_I recipe parameters reproduce the peak SNR
+    measured on 900 real Model_I images (median 18.1; the recipe's exposure
+    draw then predicts [14.8, 21.2] vs measured p5/p95 [14.8, 22.0]).
+
+    Definition history, for honesty: v1 was peak-pixel WITHOUT the boost
+    (under-predicted ~6x — every live extraction failed); v2 switched to
+    aperture-integrated (self-consistent but placed real images at ~305,
+    nowhere near the nominal 25 — wrong definition family). Real images
+    measure ~18 on peak SNR, which is the same scale as the meeting's "~25"
+    target, so peak-with-boost is what the recipe evidently means by SNR.
     """
     data = params.kwargs_data
     if data.exposure_time is None or data.background_rms is None:
         return None
     if data.exposure_time <= 0 or data.background_rms <= 0:
         return None  # covered by their own checks
-    pairs = [
-        (kw["amp"], kw.get("R_sersic", 0.3))
-        for kw in params.kwargs_source
-        if "amp" in kw
-    ]
-    if not pairs:
+    amps = [kw["amp"] for kw in params.kwargs_source if "amp" in kw]
+    if not amps:
         return None
-    amp, r_sersic = max(pairs)
-    total_counts = amp * 2 * 3.141592653589793 * r_sersic**2 * data.exposure_time
-    n_pix_aperture = 3.141592653589793 * (2 * r_sersic) ** 2 / data.deltaPix**2
-    background_var = n_pix_aperture * (data.background_rms * data.exposure_time) ** 2
-    noise = (total_counts + background_var) ** 0.5
-    return total_counts / noise if noise > 0 else None
+    peak_counts = max(amps) * data.deltaPix**2 * data.exposure_time * boost
+    noise = (peak_counts + (data.background_rms * data.exposure_time) ** 2) ** 0.5
+    return peak_counts / noise if noise > 0 else None
 
 
 def validate_parameters(
@@ -281,15 +300,20 @@ def validate_parameters(
             fail("vortex_mass", f"vortex_mass={params.vortex_mass:g} M_sun outside "
                  f"[{r.vortex_mass_min:g}, {r.vortex_mass_max:g}]; canonical value 3e10.")
 
-    # --- target SNR (where computable) ------------------------------------------
-    snr = _estimate_snr(params)
+    # --- SNR in the real-data band (where computable) -----------------------------
+    snr = _estimate_snr(params, r.lensing_boost)
     if snr is not None:
-        if snr >= r.snr_min:
+        if r.snr_min <= snr <= r.snr_max:
             ok("snr")
+        elif snr < r.snr_min:
+            fail("snr", f"estimated peak SNR {snr:.1f} < {r.snr_min:g} (real "
+                 "DeepLenseSim Model_I images measure median 18, p5 15); raise "
+                 "source amp roughly proportionally, increase exposure_time, or "
+                 "lower background_rms.")
         else:
-            fail("snr", f"estimated integrated SNR {snr:.1f} < target {r.snr_min:g} "
-                 "(Lucca's threshold); raise source amp (roughly proportionally), "
-                 "increase exposure_time, or lower background_rms.")
+            fail("snr", f"estimated peak SNR {snr:.1f} > {r.snr_max:g} — "
+                 "implausibly bright vs real DeepLenseSim images (p95 = 22); "
+                 "the source amp is likely runaway. Lower it.")
 
     return ParamValidationResult(
         passed=all(checks.values()),
