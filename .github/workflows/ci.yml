@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint-and-test:
+    name: Lint + offline tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync
+
+      # Lint is scoped to the modules added by this PR so it neither touches nor
+      # depends on existing code style.
+      - name: Lint (ruff, new modules only)
+        run: >
+          uv run ruff check
+          src/dlens/schemas
+          src/dlens/config.py
+          src/dlens/prompts/_simulation.py
+          src/dlens/tools/_sim_backends.py
+          src/dlens/tools/_sim_runner.py
+          src/dlens/tools/_simulation.py
+          src/dlens/agents/_data_simulation.py
+          src/dlens/agents/_scripted.py
+          tests
+          scripts/data_simulation_demo.py
+
+      - name: Tests (fully offline — scripted model + mock backend)
+        run: uv run pytest
