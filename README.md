@@ -64,7 +64,7 @@ uv --version
 ## 2. Clone the repository
 
 ```bash
-git clone https://github.com/pranath-reddy/DeepLense-AI-Scientist.git
+git clone https://github.com/ML4SCI/DeepLense-AI-Scientist.git
 cd DeepLense-AI-Scientist
 ```
 
