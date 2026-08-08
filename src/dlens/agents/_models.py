@@ -1,15 +1,14 @@
 from __future__ import annotations
-from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.ollama import OllamaProvider
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.providers.litellm import LiteLLMProvider
-from pydantic_ai.models.outlines import OutlinesModel
+import outlines
 from llama_cpp import Llama
 
 
 # Wrapper for OpenAI model (when you want to use OpenAI API)
-class OpenAIModel(OpenAIModel):
+class OpenAIModel(OpenAIChatModel):
     def __init__(self, model_name: str = "gpt-4o-mini"):
         super().__init__(model_name=model_name)
 
@@ -42,7 +41,7 @@ class OutlinesLlamaCppModel:
         n_ctx: int = 32768,
         chat_format: str | None = None,
     ):
-        self.model = OutlinesModel.from_llamacpp(
+        self.model = outlines.from_llamacpp(
             Llama.from_pretrained(
                 repo_id=repo_id,
                 filename=filename,
