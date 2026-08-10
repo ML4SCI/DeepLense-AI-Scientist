@@ -27,6 +27,7 @@ from dlens.schemas import SimConfig, SimModelConfig, SubstructureType
 _SHAPE_BY_MODEL: dict[SimModelConfig, int] = {
     SimModelConfig.MODEL_I: 150,
     SimModelConfig.MODEL_II: 64,
+    SimModelConfig.MODEL_III: 64,
 }
 
 
@@ -54,9 +55,16 @@ class DeepLensBackend:
     * ``DeepLens(H0=, Om0=, Ob0=, z_halo=, z_gal=, [axion_mass=])``
     * ``make_single_halo(halo_mass)``
     * substructure: ``make_no_sub()`` / ``make_old_cdm()`` / ``make_vortex(vortex_mass)``
-    * Model_I:  ``make_source_light()``     then ``simple_sim()``      -> 150x150
-    * Model_II: ``set_instrument('Euclid')``, ``make_source_light_mag()``, ``simple_sim_2()`` -> 64x64
+    * Model_I:   ``make_source_light()``     then ``simple_sim()``      -> 150x150
+    * Model_II:  ``set_instrument('Euclid')``, ``make_source_light_mag()``, ``simple_sim_2()`` -> 64x64
+    * Model_III: HST band config (see below), ``make_source_light_mag()``, ``simple_sim_2()`` -> 64x64
     * read ``lens.image_real``
+
+    Model_III note: upstream's ``set_instrument('hst')`` is a silent no-op in the
+    published DeepLenseSim (only 'euclid' is implemented), so we set
+    ``kwargs_single_band`` directly from lenstronomy's HST ObservationConfig —
+    which is what the Model_III README describes ("HST observation
+    characteristics as done by default in lenstronomy").
     """
 
     name = "deeplense"
@@ -93,6 +101,16 @@ class DeepLensBackend:
                 lens.set_instrument("Euclid")
                 lens.make_source_light_mag()
                 lens.simple_sim_2()
+            elif config.model_config_name == SimModelConfig.MODEL_III:
+                # set_instrument('hst') no-ops upstream; configure the band
+                # directly (F160W + Gaussian PSF, mirroring the euclid branch).
+                from lenstronomy.SimulationAPI.ObservationConfig.HST import HST
+
+                lens.kwargs_single_band = HST(
+                    band="WFC3_F160W", psf_type="GAUSSIAN"
+                ).kwargs_single_band()
+                lens.make_source_light_mag()
+                lens.simple_sim_2()
 
             images.append(np.asarray(lens.image_real))
         return images
@@ -102,8 +120,9 @@ class MockBackend:
     """Synthetic, deterministic stand-in for DeepLenseSim.
 
     Produces an Einstein-ring-like field whose shape/dtype mimic the real backend
-    (Model_I -> 150x150 int counts via Poisson; Model_II -> 64x64 float), with
-    substructure-dependent perturbations so the three classes look different.
+    (Model_I -> 150x150 int counts via Poisson; Model_II/Model_III -> 64x64
+    float), with substructure-dependent perturbations so the three classes look
+    different.
     """
 
     name = "mock"
@@ -118,7 +137,9 @@ class MockBackend:
 
     def _one(self, config: SimConfig, n: int, rng: np.random.Generator) -> np.ndarray:
         yy, xx = np.mgrid[0:n, 0:n].astype(float)
-        cx = cy = (n - 1) / 2.0 + rng.normal(0, n * 0.01, size=2)[0]
+        jitter_x, jitter_y = rng.normal(0, n * 0.01, size=2)
+        cx = (n - 1) / 2.0 + jitter_x
+        cy = (n - 1) / 2.0 + jitter_y
         r = np.hypot(xx - cx, yy - cy)
 
         r0 = n * 0.30
