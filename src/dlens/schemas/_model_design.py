@@ -71,6 +71,14 @@ class TrainingConfig(BaseModel):
     epochs: int = Field(default=30, ge=1, description="Number of epochs.")
     weight_decay: float = Field(default=1e-4, ge=0, description="Weight decay.")
     lr_scheduler: str = Field(default="cosine", description="LR schedule.")
+    # Regularization knobs (available to the experiment planner):
+    dropout: float = Field(default=0.0, ge=0, lt=1, description="Dropout before the classifier head.")
+    augment: bool = Field(default=False, description="Random flip/90-degree-rotation augmentation.")
+    early_stop_patience: int = Field(
+        default=0, ge=0,
+        description="If >0, hold out 10% of train and stop after this many epochs without "
+        "improvement (best weights restored).",
+    )
 
 
 def characteristics_from_sim_outputs(

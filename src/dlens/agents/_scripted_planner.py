@@ -1,9 +1,9 @@
 # agents/_scripted_planner.py
 """Scripted ``FunctionModel``s for offline planner / report tests.
 
-The planner model reads the serialized ``ExperimentState`` from the prompt and
-decides based on ``current_iteration`` (deterministic, no LLM). The report model
-summarizes the same state. Both let the full feedback loop run with no LLM/network.
+The planner model reads the serialized (compact) ``ExperimentState`` from the prompt
+and emits a fixed decision per iteration index — deterministic, no LLM — so the full
+feedback loop runs offline.
 """
 
 from __future__ import annotations
@@ -29,25 +29,17 @@ def _user_json(messages: list[ModelMessage]) -> dict:
         return {}
 
 
-def make_scripted_planner_model(
-    *,
-    report_after: int = 1,
-    terminal_action: str = "report",
-    updated_params: Optional[dict[str, Any]] = None,
-) -> FunctionModel:
-    """Continue (``design_model``) until ``current_iteration >= report_after``, then
-    emit ``terminal_action`` (``report`` or ``stop``)."""
+def make_scripted_planner_model(decisions: list[dict[str, Any]]) -> FunctionModel:
+    """Emit ``decisions[current_iteration]`` (a PlannerDecision dict); ``report``
+    once the list is exhausted."""
 
     def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         iteration = _user_json(messages).get("current_iteration", 0)
-        if iteration >= report_after:
-            decision = {"action": terminal_action, "rationale": "Budget/metric reached.", "updated_params": {}}
+        if iteration < len(decisions):
+            decision = decisions[iteration]
         else:
-            decision = {
-                "action": "design_model",
-                "rationale": "Adjust configuration and try again.",
-                "updated_params": updated_params or {"learning_rate": 0.0001},
-            }
+            decision = {"action": "report", "rationale": "Scripted budget exhausted.",
+                        "updated_params": {}}
         return ModelResponse(parts=[ToolCallPart(info.output_tools[0].name, decision)])
 
     return FunctionModel(respond)
