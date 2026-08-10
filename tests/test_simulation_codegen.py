@@ -78,6 +78,15 @@ def test_synthetic_prompts():
         assert p["model"] in {"Model_I", "Model_II", "Model_III"}
         assert p["substructure"] in {"no_sub", "cdm", "axion"}
 
+def test_validate_output_size_check():
+    r = LocalSandbox().run(_GOOD)  # writes a 64x64 image
+    ok = validate_output(r, expected_shape=(64, 64))
+    assert ok.passed and ok.checks["matches_requested_size"] is True
+    bad = validate_output(r, expected_shape=(150, 150))
+    assert not bad.passed
+    assert bad.checks["matches_requested_size"] is False
+    # without an expected shape the check is absent (structural checks only)
+    assert "matches_requested_size" not in validate_output(r).checks
 def test_exit_zero_but_no_output_reports_ran_true():
     # A script that exits 0 but writes nothing must be reported as "ran" with no
     # output — not as a process failure (that wrong signal used to reach the
