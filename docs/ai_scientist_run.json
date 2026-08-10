@@ -1,0 +1,597 @@
+{
+  "llm": "gpt-5.6-luna",
+  "search": {
+    "proposed": [
+      {
+        "name": "cnn_tiny_balanced",
+        "family": "cnn",
+        "input_shape": [
+          150,
+          150
+        ],
+        "channels": 1,
+        "num_classes": 3,
+        "depths": [
+          1,
+          1,
+          1
+        ],
+        "widths": [
+          16,
+          32,
+          64
+        ],
+        "physics_informed": false,
+        "rationale": "A compact three-stage CNN limits parameter count and is suitable as an overfitting-resistant baseline for only 1800 training images."
+      },
+      {
+        "name": "cnn_small_deep",
+        "family": "cnn",
+        "input_shape": [
+          150,
+          150
+        ],
+        "channels": 1,
+        "num_classes": 3,
+        "depths": [
+          2,
+          2,
+          2
+        ],
+        "widths": [
+          16,
+          32,
+          64
+        ],
+        "physics_informed": false,
+        "rationale": "Extra convolutions at modest widths can capture lens morphology more effectively than a tiny model while retaining controlled capacity."
+      },
+      {
+        "name": "cnn_small_wide",
+        "family": "cnn",
+        "input_shape": [
+          150,
+          150
+        ],
+        "channels": 1,
+        "num_classes": 3,
+        "depths": [
+          1,
+          1,
+          1
+        ],
+        "widths": [
+          32,
+          64,
+          128
+        ],
+        "physics_informed": false,
+        "rationale": "A shallow but wider CNN offers stronger channel capacity for underfitting cases while avoiding the depth of a large network."
+      },
+      {
+        "name": "cnn_medium_multistage",
+        "family": "cnn",
+        "input_shape": [
+          150,
+          150
+        ],
+        "channels": 1,
+        "num_classes": 3,
+        "depths": [
+          2,
+          2,
+          2,
+          2
+        ],
+        "widths": [
+          16,
+          32,
+          64,
+          128
+        ],
+        "physics_informed": false,
+        "rationale": "Four resolution stages provide multi-scale feature extraction for extended arcs and compact structures at moderate capacity."
+      },
+      {
+        "name": "cnn_large_morphology",
+        "family": "cnn",
+        "input_shape": [
+          150,
+          150
+        ],
+        "channels": 1,
+        "num_classes": 3,
+        "depths": [
+          3,
+          3,
+          3,
+          3
+        ],
+        "widths": [
+          32,
+          64,
+          128,
+          256
+        ],
+        "physics_informed": false,
+        "rationale": "This high-capacity plain CNN is an intentionally expressive option for configurations where simpler candidates underfit subtle class differences."
+      },
+      {
+        "name": "resnet18_compact",
+        "family": "resnet",
+        "input_shape": [
+          150,
+          150
+        ],
+        "channels": 1,
+        "num_classes": 3,
+        "depths": [
+          2,
+          2,
+          2,
+          2
+        ],
+        "widths": [
+          16,
+          32,
+          64,
+          128
+        ],
+        "physics_informed": false,
+        "rationale": "Residual connections make a compact four-stage model easier to optimize while keeping capacity appropriate for the limited training set."
+      },
+      {
+        "name": "resnet_shallow_wide",
+        "family": "resnet",
+        "input_shape": [
+          150,
+          150
+        ],
+        "channels": 1,
+        "num_classes": 3,
+        "depths": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "widths": [
+          32,
+          64,
+          128,
+          256
+        ],
+        "physics_informed": false,
+        "rationale": "Wide residual stages provide substantial representational capacity with few blocks, targeting underfitting while reducing optimization depth."
+      },
+      {
+        "name": "resnet_deep_narrow",
+        "family": "resnet",
+        "input_shape": [
+          150,
+          150
+        ],
+        "channels": 1,
+        "num_classes": 3,
+        "depths": [
+          3,
+          3,
+          3,
+          3
+        ],
+        "widths": [
+          16,
+          32,
+          64,
+          128
+        ],
+        "physics_informed": false,
+        "rationale": "A deeper narrow residual network can model hierarchical lens features efficiently without the parameter burden of a wide counterpart."
+      },
+      {
+        "name": "resnet_medium_wide",
+        "family": "resnet",
+        "input_shape": [
+          150,
+          150
+        ],
+        "channels": 1,
+        "num_classes": 3,
+        "depths": [
+          2,
+          3,
+          3,
+          2
+        ],
+        "widths": [
+          32,
+          64,
+          128,
+          256
+        ],
+        "physics_informed": false,
+        "rationale": "This moderately large residual design balances depth and width for complex morphology when compact models show persistent underfitting."
+      },
+      {
+        "name": "resnet_high_capacity",
+        "family": "resnet",
+        "input_shape": [
+          150,
+          150
+        ],
+        "channels": 1,
+        "num_classes": 3,
+        "depths": [
+          4,
+          4,
+          4,
+          4
+        ],
+        "widths": [
+          32,
+          64,
+          128,
+          256
+        ],
+        "physics_informed": false,
+        "rationale": "The largest candidate supplies maximum feature capacity for difficult separations, although its size makes regularization important with 1800 samples."
+      }
+    ],
+    "dropped_unbuildable": [],
+    "judge_ranking": [
+      3,
+      5,
+      2,
+      7,
+      6,
+      0,
+      4,
+      8,
+      9
+    ],
+    "judge_reasoning": "The strongest expected generalization is from the moderate-capacity CNN with four stages and balanced depth/width (candidate 3, 0.294M parameters): it should represent spatial morphology without being excessively large for only 1,800 training examples. Candidate 5 is next because its 0.701M residual architecture offers useful depth and optimization support while remaining substantially smaller than the high-capacity alternatives. Candidate 2 is a conservative, wide-but-shallow option; its 0.093M parameters reduce overfitting risk but may retain some underfitting risk. Candidates 7 and 6 have roughly 1.1\u20131.2M parameters: plausible but increasingly capacity-heavy, with candidate 7's added depth likely preferable to candidate 6's very wide shallow design. Candidate 0 is least capacity-heavy and therefore most likely to underfit, despite low overfitting risk. Candidates 4, 8, and 9 are progressively too large for the sample size, with candidate 9 most likely to overfit; candidate 4 is placed above the larger residual models because its 1.958M CNN is less extreme than 3.166M and 5.934M.",
+    "rounds": [
+      [
+        {
+          "name": "cnn_medium_multistage",
+          "params_m": 0.294,
+          "train_accuracy": 0.7144,
+          "val_accuracy": 0.5983333333333334,
+          "gap": 0.1161,
+          "macro_auc": 0.7738935185185185,
+          "train_seconds": 22.5
+        },
+        {
+          "name": "resnet18_compact",
+          "params_m": 0.701,
+          "train_accuracy": 1.0,
+          "val_accuracy": 0.5816666666666667,
+          "gap": 0.4183,
+          "macro_auc": 0.7634560185185185,
+          "train_seconds": 9.5
+        },
+        {
+          "name": "cnn_small_wide",
+          "params_m": 0.093,
+          "train_accuracy": 0.3939,
+          "val_accuracy": 0.3572222222222222,
+          "gap": 0.0367,
+          "macro_auc": 0.5329472222222222,
+          "train_seconds": 19.1
+        },
+        {
+          "name": "resnet_deep_narrow",
+          "params_m": 1.094,
+          "train_accuracy": 0.9983,
+          "val_accuracy": 0.5794444444444444,
+          "gap": 0.4189,
+          "macro_auc": 0.7769597222222222,
+          "train_seconds": 11.3
+        }
+      ],
+      [
+        {
+          "name": "cnn_medium_balanced",
+          "params_m": 0.162,
+          "train_accuracy": 0.5472,
+          "val_accuracy": 0.4961111111111111,
+          "gap": 0.0511,
+          "macro_auc": 0.683563888888889,
+          "train_seconds": 36.9
+        },
+        {
+          "name": "cnn_deep_narrow_multistage",
+          "params_m": 0.084,
+          "train_accuracy": 0.6117,
+          "val_accuracy": 0.5383333333333333,
+          "gap": 0.0734,
+          "macro_auc": 0.7325972222222221,
+          "train_seconds": 25.6
+        },
+        {
+          "name": "cnn_latewide_multistage",
+          "params_m": 0.195,
+          "train_accuracy": 0.4978,
+          "val_accuracy": 0.43333333333333335,
+          "gap": 0.0645,
+          "macro_auc": 0.6260939814814815,
+          "train_seconds": 46.0
+        }
+      ]
+    ],
+    "winner": {
+      "name": "cnn_medium_multistage",
+      "family": "cnn",
+      "input_shape": [
+        150,
+        150
+      ],
+      "channels": 1,
+      "num_classes": 3,
+      "depths": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "widths": [
+        16,
+        32,
+        64,
+        128
+      ],
+      "physics_informed": false,
+      "rationale": "Four resolution stages provide multi-scale feature extraction for extended arcs and compact structures at moderate capacity."
+    },
+    "winner_eval": {
+      "name": "cnn_medium_multistage",
+      "params_m": 0.294,
+      "train_accuracy": 0.7144,
+      "val_accuracy": 0.5983333333333334,
+      "gap": 0.1161,
+      "macro_auc": 0.7738935185185185,
+      "train_seconds": 22.5
+    },
+    "timings": {
+      "generate_s": 7.1,
+      "judge_s": 4.9,
+      "round1_cnn_medium_multistage_s": 22.5,
+      "round1_resnet18_compact_s": 9.5,
+      "round1_cnn_small_wide_s": 19.1,
+      "round1_resnet_deep_narrow_s": 11.3,
+      "refine_generate_s": 3.8,
+      "round2_cnn_medium_balanced_s": 36.9,
+      "round2_cnn_deep_narrow_multistage_s": 25.6,
+      "round2_cnn_latewide_multistage_s": 46.0,
+      "search_total_s": 186.7
+    }
+  },
+  "tuning": {
+    "hypothesis": "Tune the search winner 'cnn_medium_multistage' to close any generalization gap on DeepLense Model_I.",
+    "current_iteration": 1,
+    "max_iterations": 4,
+    "runs": [
+      {
+        "iteration": 0,
+        "sim_config": null,
+        "sim_output": null,
+        "architecture": {
+          "name": "cnn_medium_multistage",
+          "family": "cnn",
+          "input_shape": [
+            150,
+            150
+          ],
+          "channels": 1,
+          "num_classes": 3,
+          "depths": [
+            2,
+            2,
+            2,
+            2
+          ],
+          "widths": [
+            16,
+            32,
+            64,
+            128
+          ],
+          "physics_informed": false,
+          "rationale": "Four resolution stages provide multi-scale feature extraction for extended arcs and compact structures at moderate capacity."
+        },
+        "training_config": {
+          "loss": "cross_entropy",
+          "optimizer": "adamw",
+          "learning_rate": 0.0003,
+          "batch_size": 32,
+          "epochs": 25,
+          "weight_decay": 0.0001,
+          "lr_scheduler": "cosine",
+          "dropout": 0.0,
+          "augment": false,
+          "early_stop_patience": 0
+        },
+        "train_result": {
+          "run_id": "e2975721",
+          "weights_path": "/Users/asalunke/Personal/GSoC/deeplense_data/model1/search_runs/e2975721/model.pt",
+          "backend": "torch",
+          "num_classes": 3,
+          "metrics": {
+            "train_accuracy": 0.9961,
+            "final_loss": 0.148
+          },
+          "epochs_run": 25
+        },
+        "infer_result": {
+          "run_id": "c058df5e",
+          "num_samples": 1800,
+          "num_classes": 3,
+          "accuracy": 0.6294444444444445,
+          "backend": "torch"
+        },
+        "analysis_result": {
+          "accuracy": 0.6294444444444445,
+          "macro_auc": 0.8068305555555556,
+          "confusion_matrix": [
+            [
+              396,
+              124,
+              80
+            ],
+            [
+              153,
+              379,
+              68
+            ],
+            [
+              164,
+              78,
+              358
+            ]
+          ],
+          "per_class": {
+            "no_sub": {
+              "precision": 0.5554,
+              "recall": 0.66,
+              "f1": 0.6032,
+              "support": 600.0
+            },
+            "cdm": {
+              "precision": 0.6523,
+              "recall": 0.6317,
+              "f1": 0.6418,
+              "support": 600.0
+            },
+            "axion": {
+              "precision": 0.7075,
+              "recall": 0.5967,
+              "f1": 0.6474,
+              "support": 600.0
+            }
+          },
+          "summary": "accuracy=0.629, macro_auc=0.807; weakest recall on class 'axion'."
+        },
+        "planner_decision": {
+          "action": "train",
+          "rationale": "The model is strongly overfit: train_accuracy is 0.9961 while validation accuracy is only 0.6294, a 0.3667 gap. Validation macro-AUC is higher at 0.8068, but class recalls remain moderate, especially axion at 0.5967, indicating poor generalization rather than insufficient training fit. Enable augmentation as the smallest targeted intervention to improve robustness while keeping the architecture and other training settings unchanged.",
+          "updated_params": {
+            "training": {
+              "augment": true
+            }
+          }
+        }
+      },
+      {
+        "iteration": 1,
+        "sim_config": null,
+        "sim_output": null,
+        "architecture": {
+          "name": "cnn_medium_multistage",
+          "family": "cnn",
+          "input_shape": [
+            150,
+            150
+          ],
+          "channels": 1,
+          "num_classes": 3,
+          "depths": [
+            2,
+            2,
+            2,
+            2
+          ],
+          "widths": [
+            16,
+            32,
+            64,
+            128
+          ],
+          "physics_informed": false,
+          "rationale": "Four resolution stages provide multi-scale feature extraction for extended arcs and compact structures at moderate capacity."
+        },
+        "training_config": {
+          "loss": "cross_entropy",
+          "optimizer": "adamw",
+          "learning_rate": 0.0003,
+          "batch_size": 32,
+          "epochs": 25,
+          "weight_decay": 0.0001,
+          "lr_scheduler": "cosine",
+          "dropout": 0.0,
+          "augment": true,
+          "early_stop_patience": 0
+        },
+        "train_result": {
+          "run_id": "4b2fb1c7",
+          "weights_path": "/Users/asalunke/Personal/GSoC/deeplense_data/model1/search_runs/4b2fb1c7/model.pt",
+          "backend": "torch",
+          "num_classes": 3,
+          "metrics": {
+            "train_accuracy": 0.7756,
+            "final_loss": 0.6215
+          },
+          "epochs_run": 25
+        },
+        "infer_result": {
+          "run_id": "a2b8dec4",
+          "num_samples": 1800,
+          "num_classes": 3,
+          "accuracy": 0.7488888888888889,
+          "backend": "torch"
+        },
+        "analysis_result": {
+          "accuracy": 0.7488888888888889,
+          "macro_auc": 0.8996444444444446,
+          "confusion_matrix": [
+            [
+              437,
+              74,
+              89
+            ],
+            [
+              100,
+              425,
+              75
+            ],
+            [
+              66,
+              48,
+              486
+            ]
+          ],
+          "per_class": {
+            "no_sub": {
+              "precision": 0.7247,
+              "recall": 0.7283,
+              "f1": 0.7265,
+              "support": 600.0
+            },
+            "cdm": {
+              "precision": 0.777,
+              "recall": 0.7083,
+              "f1": 0.7411,
+              "support": 600.0
+            },
+            "axion": {
+              "precision": 0.7477,
+              "recall": 0.81,
+              "f1": 0.7776,
+              "support": 600.0
+            }
+          },
+          "summary": "accuracy=0.749, macro_auc=0.900; weakest recall on class 'cdm'."
+        },
+        "planner_decision": {
+          "action": "report",
+          "rationale": "[loop guard] train/val gap 0.027 <= threshold 0.06 \u2014 gap closed.",
+          "updated_params": {}
+        }
+      }
+    ]
+  },
+  "runtime_s": {
+    "phase_a": 187.3,
+    "phase_b": 168.8,
+    "total": 356.2
+  }
+}

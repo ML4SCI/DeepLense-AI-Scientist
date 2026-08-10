@@ -47,7 +47,7 @@ LENSTRONOMY API CHEAT-SHEET (verified against the sandbox's installed version, l
     image = image_model.image(kwargs_lens=kwargs_lens, kwargs_source=kwargs_source)\
 """
 
-CODEGEN_SYSTEM_PROMPT = """\
+CODEGEN_SYSTEM_PROMPT_UNGROUNDED = """\
 You write a single, self-contained Python script that simulates a strong
 gravitational-lensing image described in natural language, using lenstronomy.
 
@@ -75,4 +75,8 @@ TWO VALID APPROACHES:
 Keep it minimal and correct. In `reasoning`, briefly note the lens model, source,
 instrument, and substructure you chose and why.
 
-""" + LENSTRONOMY_API_CHEATSHEET
+"""
+
+# Grounded variant (the default system): base prompt + the version-pinned
+# lenstronomy API cheat-sheet.
+CODEGEN_SYSTEM_PROMPT = CODEGEN_SYSTEM_PROMPT_UNGROUNDED + "\n" + LENSTRONOMY_API_CHEATSHEET
