@@ -24,7 +24,7 @@ import time
 import numpy as np
 
 from dlens.agents._architecture_search import ArchitectureGenerator, ArchitectureJudge, ArchitectureSearch
-from dlens.agents._experiment_loop import ExperimentLoop
+from dlens.agents._experiment_loop import ExperimentLoop, best_run_by_val_accuracy
 from dlens.agents._experiment_planner import ExperimentPlanner, ReActPlannerStrategy
 from dlens.config import DEFAULT_LLM, build_llm
 from dlens.schemas._downstream import DatasetRef
@@ -122,15 +122,29 @@ async def main() -> int:
     phase_b = time.monotonic() - tB
 
     # ---------------- summary ----------------
-    final = state.runs[-1]
-    final_train = final.train_result.metrics.get("train_accuracy", float("nan"))
-    final_val = final.infer_result.accuracy or float("nan")
+    # Report the BEST iteration by validation accuracy, not the last one: a failed
+    # intervention (e.g. early-stopping into a collapse) must not be presented as
+    # the outcome of the tuning loop. The whole trajectory is printed too, so the
+    # last iteration stays visible either way.
+    best = best_run_by_val_accuracy(state)
+    best_train = best.train_result.metrics.get("train_accuracy", float("nan"))
+    best_val = best.infer_result.accuracy or float("nan")
     print(f"\n{RULE}\n  SUMMARY\n{RULE}")
     print(f"  winner architecture : {result.winner.name} "
           f"(family={result.winner.family.value}, depths={result.winner.depths}, "
           f"widths={result.winner.widths}, ~{result.winner_eval.params_m}M params)")
-    print(f"  final (tuned)       : train={final_train:.4f} val={final_val:.4f} "
-          f"gap={final_train - final_val:.4f} auc={final.analysis_result.macro_auc:.4f}")
+    print("  tuning trajectory   :")
+    for r in state.runs:
+        t = r.train_result.metrics.get("train_accuracy", float("nan"))
+        v = r.infer_result.accuracy if r.infer_result.accuracy is not None else float("nan")
+        auc_r = r.analysis_result.macro_auc
+        auc_s = f"{auc_r:.4f}" if auc_r is not None else "n/a"
+        print(f"      it{r.iteration}: train={t:.4f} val={v:.4f} gap={t - v:+.4f} "
+              f"auc={auc_s}{'   <- best' if r is best else ''}")
+    best_auc = best.analysis_result.macro_auc
+    print(f"  best (tuned)        : it{best.iteration} train={best_train:.4f} "
+          f"val={best_val:.4f} gap={best_train - best_val:.4f} "
+          f"auc={f'{best_auc:.4f}' if best_auc is not None else 'n/a'}")
     print(f"  runtime             : phase A {phase_a/60:.1f} min | phase B {phase_b/60:.1f} min "
           f"| TOTAL {(phase_a + phase_b)/60:.1f} min")
     print(f"  search timings (s)  : { {k: v for k, v in result.timings.items()} }")
@@ -142,6 +156,7 @@ async def main() -> int:
         "tuning": state.model_dump(mode="json", exclude={
             "runs": {"__all__": {"infer_result": {"predictions", "probabilities", "true_labels"}}}
         }),
+        "best_iteration": best.iteration,
         "runtime_s": {"phase_a": round(phase_a, 1), "phase_b": round(phase_b, 1),
                       "total": round(phase_a + phase_b, 1)},
     }

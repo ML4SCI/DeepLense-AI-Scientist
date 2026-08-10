@@ -24,7 +24,11 @@ async def run_two_stage(args) -> int:
     """The two-stage path (NL -> validated parameters -> code), opt-in via
     --two-stage. The direct path below stays the default and unchanged."""
     from dlens.agents._param_extraction import ParamExtractionAgent
-    from dlens.agents._scripted_param_extraction import make_scripted_extraction_model
+    from dlens.agents._scripted_param_extraction import (
+        GOOD_PARAMS,
+        make_scripted_extraction_model,
+        render_offline_program,
+    )
     from dlens.agents._two_stage_codegen import TwoStageSimulationAgent
 
     spec = SimSpec(description=SYNTHETIC_PROMPTS[0]["description"])
@@ -41,10 +45,15 @@ async def run_two_stage(args) -> int:
         )
     else:
         print("Mode: OFFLINE two-stage — scripted models + LocalSandbox")
+        # The scripted program must EMBED the validated parameters, otherwise the
+        # AST verification stage correctly reports every field as missing (the
+        # default scripted program is a trivial image writer with no lenstronomy
+        # parameters in it at all).
         agent = TwoStageSimulationAgent(
             extractor=ParamExtractionAgent(model=make_scripted_extraction_model()),
             codegen=SimulationCodegenAgent(
-                model=make_scripted_codegen_model(), sandbox=LocalSandbox()
+                model=make_scripted_codegen_model(code=render_offline_program(GOOD_PARAMS)),
+                sandbox=LocalSandbox(),
             ),
         )
 
@@ -57,7 +66,25 @@ async def run_two_stage(args) -> int:
         print(f"  - {m}")
     if res.codegen:
         print("--- codegen ---")
-        print(f"  passed: {res.codegen.validation.passed} | attempts: {res.codegen.attempts}")
+        print(f"  passed: {res.codegen.validation.passed} | attempts: {res.codegen.attempts} "
+              f"| codegen passes: {res.codegen_passes}")
+    # Print the AST verification result: without it a failure here is invisible
+    # (the parameters and the sandbox run can both pass while the generated code
+    # quietly ignored the validated values).
+    cmp_ = res.code_param_comparison
+    print("--- code vs validated parameters (AST) ---")
+    if cmp_ is None:
+        print("  (not reached — codegen never produced a passing script)")
+    else:
+        print(f"  passed: {cmp_.passed} | matched: {len(cmp_.matched)} "
+              f"diverged: {len(cmp_.diverged)} missing: {len(cmp_.missing)} "
+              f"unresolved: {len(cmp_.unresolved)}")
+        for d in cmp_.diverged:
+            print(f"  - diverged {d.field}: script={d.actual!r} validated={d.expected!r}")
+        for f in cmp_.missing:
+            print(f"  - missing {f}")
+        for f in cmp_.unresolved:
+            print(f"  - unresolved {f}")
     print("\nRESULT:", "PASSED" if res.ok else "FAILED")
     return 0 if res.ok else 1
 

@@ -79,8 +79,22 @@ source .venv/bin/activate  # macOS/Linux
 ## 4. Install the package and dependencies
 
 ```bash
-uv pip install -e .
+uv sync            # installs everything, including torch
 ```
+
+`uv pip install -e .` works too. `torch` is a **main** dependency, not an extra:
+the AI-Scientist pipeline's training/inference backends need it, so a plain
+`uv sync` is all a fresh clone requires.
+
+**Verified environments** (offline suite + both live pipelines):
+
+| Python | torch | Notes |
+|---|---|---|
+| 3.12.13 | 2.x | the interpreter the paper results were produced on |
+| 3.14.5 | 2.13.0 | also verified end to end; Apple-Silicon MPS detected and used |
+
+`uv` picks the newest interpreter satisfying `requires-python = ">=3.12"`. Pin one
+explicitly with `uv venv --python 3.12` if you want to match the paper runs.
 
 ## 5. Run the sanity check or pytest
 

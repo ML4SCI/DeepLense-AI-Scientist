@@ -12,9 +12,17 @@ default is a ReAct LLM planner; an agentic tree search could implement the same
 protocol later — that design space is intentionally left open.
 
 Stop conditions (code-side guards, besides the planner's own report/stop):
-  * train/val gap closes below ``gap_threshold``
+  * train/val gap closes below ``gap_threshold`` **and** the model still works
+    (see below) — a small gap alone is not convergence
   * val accuracy stops improving for ``patience`` consecutive iterations
   * ``max_iterations`` budget reached
+
+A closed gap only counts as convergence if validation accuracy is acceptable.
+An intervention can close the gap by *destroying* the model — e.g. early
+stopping fires while the network is still on its initial plateau, leaving train
+and val both at chance level with a tiny gap between them. That is a failed
+intervention, not a converged experiment, so the loop keeps iterating and lets
+the planner react to the collapse instead of reporting success.
 """
 
 from __future__ import annotations
@@ -78,10 +86,24 @@ class ExperimentLoop:
         gap_threshold: float = 0.06,
         min_val_delta: float = 0.005,
         patience: int = 2,
+        min_val_accuracy: Optional[float] = None,
+        min_val_above_chance: float = 0.05,
+        max_val_regression: float = 0.10,
     ) -> ExperimentState:
         state = ExperimentState(hypothesis=hypothesis, max_iterations=max_iterations)
         arch, cfg = architecture, training_config
         best_val, no_improve = -1.0, 0
+
+        # Convergence floor for validation accuracy. Default: chance level for the
+        # class count plus a margin — a classifier within `min_val_above_chance` of
+        # random guessing has collapsed, not converged. Chance is the only
+        # task-independent reference point available here, which is why it (and not
+        # some absolute accuracy target) sets the floor; pass `min_val_accuracy` to
+        # impose a stricter, task-specific bound.
+        chance = 1.0 / max(val_ref.num_classes, 2)
+        val_floor = (
+            min_val_accuracy if min_val_accuracy is not None else chance + min_val_above_chance
+        )
 
         for i in range(max_iterations):
             state.current_iteration = i
@@ -106,15 +128,34 @@ class ExperimentLoop:
                   flush=True)
 
             # --- code-side stop guards (recorded as loop-guard decisions) ---
-            guard: Optional[str] = None
-            if gap <= gap_threshold:
-                guard = f"train/val gap {gap:.3f} <= threshold {gap_threshold} — gap closed."
-            elif val_acc > best_val + min_val_delta:
+            prev_best = best_val
+            if val_acc > best_val + min_val_delta:
                 best_val, no_improve = val_acc, 0
             else:
                 no_improve += 1
+
+            # A closed gap is only convergence if the model still works: reject a
+            # collapse (val at/near chance) or a large regression against the best
+            # val accuracy seen so far — both mean the intervention did harm.
+            collapsed = val_acc < val_floor
+            regressed = prev_best >= 0.0 and (prev_best - val_acc) > max_val_regression
+
+            guard: Optional[str] = None
+            if gap <= gap_threshold and not (collapsed or regressed):
+                guard = f"train/val gap {gap:.3f} <= threshold {gap_threshold} — gap closed."
+            elif gap <= gap_threshold:
+                why = (
+                    f"val {val_acc:.4f} below floor {val_floor:.3f} (chance {chance:.3f})"
+                    if collapsed
+                    else f"val {val_acc:.4f} regressed {prev_best - val_acc:.4f} from best "
+                         f"{prev_best:.4f} (limit {max_val_regression})"
+                )
+                print(f"    [guard] gap {gap:.3f} <= {gap_threshold} but {why} — "
+                      "failed intervention, not convergence; continuing.", flush=True)
                 if no_improve >= patience:
                     guard = f"val accuracy has not improved for {patience} iterations."
+            elif no_improve >= patience:
+                guard = f"val accuracy has not improved for {patience} iterations."
             if i == max_iterations - 1 and guard is None:
                 guard = "iteration budget reached."
 
@@ -137,6 +178,23 @@ class ExperimentLoop:
             arch, cfg = _apply(decision.updated_params, arch, cfg)
 
         return state
+
+
+def best_run_by_val_accuracy(state: ExperimentState) -> Optional[ExperimentRun]:
+    """The iteration with the highest validation accuracy (``None`` if no runs).
+
+    Runners should report this rather than ``state.runs[-1]``: the last iteration
+    may be a failed intervention, which must not be presented as the outcome of
+    the tuning loop. Ties keep the earliest iteration (simpler config wins).
+    """
+    if not state.runs:
+        return None
+
+    def _val(run: ExperimentRun) -> float:
+        acc = run.infer_result.accuracy
+        return float(acc) if acc is not None else float("-inf")
+
+    return max(state.runs, key=_val)
 
 
 def _apply(
