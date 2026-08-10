@@ -20,12 +20,6 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
-      # Temporary: pydantic-ai 2.0.0 removed the deprecated `OpenAIModel` alias that
-      # the framework's agents/_models.py still imports, which breaks `import dlens`.
-      # Pin <2 until that import is updated upstream (one-line: use OpenAIChatModel).
-      - name: Pin compatible pydantic-ai (temporary upstream workaround)
-        run: uv pip install 'pydantic-ai<2'
-
       # Lint is scoped to the modules added by this PR.
       - name: Lint (ruff, new modules only)
         run: >
