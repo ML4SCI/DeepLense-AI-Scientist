@@ -20,10 +20,17 @@ from dlens.tools._inference import InferBackend, InferDeps, get_infer_backend, r
 
 
 class InferReport(OutputSchema):
-    """The infer agent's structured output."""
+    """The infer agent's structured output.
+
+    Compact by design: the full prediction arrays never round-trip through the
+    model — the authoritative :class:`InferResult` is surfaced code-side via
+    ``InferAgent.last_result``.
+    """
 
     message: str = Field(description="One-line summary of the inference run.")
-    result: InferResult = Field(description="The inference result.")
+    run_id: str = Field(description="Id of the inference run.")
+    num_samples: int = Field(description="Number of samples scored.")
+    accuracy: float | None = Field(default=None, description="Accuracy, if labels present.")
 
 
 class InferAgent(DLensBaseAgent):
