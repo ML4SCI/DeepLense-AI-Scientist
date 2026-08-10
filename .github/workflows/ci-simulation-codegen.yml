@@ -1,0 +1,38 @@
+name: CI (simulation codegen)
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint-and-test:
+    name: Lint + offline tests (V2 code-generation agent)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync
+
+      # Lint scoped to the modules added by this PR.
+      - name: Lint (ruff, new modules only)
+        run: >
+          uv run ruff check
+          src/dlens/schemas
+          src/dlens/tools/_sandbox.py
+          src/dlens/prompts/_codegen.py
+          src/dlens/agents/_simulation_codegen.py
+          src/dlens/agents/_scripted_codegen.py
+          src/dlens/data
+          tests/test_simulation_codegen.py
+          scripts/simulation_codegen_demo.py
+
+      # Fully offline: scripted model + LocalSandbox (no LLM, no Docker, no lenstronomy).
+      - name: Tests (offline)
+        run: uv run pytest

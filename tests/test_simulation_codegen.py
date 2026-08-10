@@ -87,3 +87,32 @@ def test_validate_output_size_check():
     assert bad.checks["matches_requested_size"] is False
     # without an expected shape the check is absent (structural checks only)
     assert "matches_requested_size" not in validate_output(r).checks
+def test_exit_zero_but_no_output_reports_ran_true():
+    # A script that exits 0 but writes nothing must be reported as "ran" with no
+    # output — not as a process failure (that wrong signal used to reach the
+    # retry prompt).
+    r = LocalSandbox().run(_NO_OUTPUT)
+    assert r.ok is True and r.returncode == 0 and r.output_path is None
+    v = validate_output(r)
+    assert not v.passed
+    assert v.checks["ran"] is True
+    assert v.checks["produced_output"] is False
+    assert "wrote no output" in v.message
+
+
+def test_nonzero_exit_reports_ran_false():
+    r = LocalSandbox().run("import sys; sys.exit(3)\n")
+    assert r.ok is False and r.returncode == 3
+    v = validate_output(r)
+    assert not v.passed
+    assert v.checks["ran"] is False
+    assert "exited with code 3" in v.message
+
+
+def test_execresult_returncode_defaults_to_sentinel():
+    from dlens.tools._sandbox import ExecResult
+
+    # No subprocess ran (docker missing / timeout): returncode must not look like
+    # a successful exit.
+    assert ExecResult(ok=False).returncode == -1
+
