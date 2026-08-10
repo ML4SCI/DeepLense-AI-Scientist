@@ -29,7 +29,9 @@ SUBSTRUCTURE TYPES: no_sub (smooth lens); cdm (cold-dark-matter subhalos); \
 vortex (axion vortex; REQUIRES axion_mass in eV, typically 1e-24 to 1e-22).
 
 MODEL CONFIGURATIONS: Model_I (150x150 px, Gaussian PSF); Model_II (64x64 px, \
-Euclid-realistic instrument).
+Euclid-realistic instrument); Model_III (64x64 px, HST-realistic instrument). \
+Model_IV is NOT available (it needs real galaxy source images outside this \
+pipeline) — if asked for it, say so and offer Model_III instead.
 
 PHYSICS CONSTRAINTS (the schema enforces these; respect them when proposing): \
 z_source MUST be greater than z_halo (source behind the lens); axion_mass is \

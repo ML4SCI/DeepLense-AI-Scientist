@@ -30,12 +30,18 @@ class SimModelConfig(str, Enum):
     """DeepLenseSim model configurations (named ``SimModelConfig`` to avoid
     confusion with the downstream neural-network *model design* stage).
 
-    Model_I:  150x150 px, 0.05 arcsec/px, Gaussian PSF (``simple_sim``)
-    Model_II: 64x64 px, Euclid-realistic instrument (``simple_sim_2``)
+    Model_I:   150x150 px, 0.05 arcsec/px, Gaussian PSF (``simple_sim``)
+    Model_II:  64x64 px, Euclid-realistic instrument (``simple_sim_2``)
+    Model_III: 64x64 px, HST-realistic instrument (``simple_sim_2``)
+
+    Model_IV is deliberately NOT supported: upstream generates it with raw
+    lenstronomy ``SimAPI`` + real galaxy images (Galaxy10 DECals, external
+    ~2.7 GB dataset) rather than the ``DeepLens`` wrapper this stage uses.
     """
 
     MODEL_I = "Model_I"
     MODEL_II = "Model_II"
+    MODEL_III = "Model_III"
 
 
 class CosmologyParams(BaseModel):
@@ -63,7 +69,7 @@ class SimConfig(BaseModel):
     )
     model_config_name: SimModelConfig = Field(
         default=SimModelConfig.MODEL_I,
-        description="Which DeepLenseSim configuration to use (Model_I or Model_II)",
+        description="Which DeepLenseSim configuration to use (Model_I, Model_II, or Model_III)",
     )
     num_images: int = Field(
         default=5, ge=1, le=100, description="Number of images to generate (1-100)"
