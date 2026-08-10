@@ -23,6 +23,10 @@ import numpy as np
 from dlens.schemas import SimConfig, SimOutput
 from dlens.tools._sim_backends import SimBackend, get_backend
 
+# 8-hex-char run ids are convenient to type but not collision-proof; a handful
+# of fresh draws is plenty (collisions are ~1-in-4e9 per draw).
+_RUN_ID_ATTEMPTS = 5
+
 
 def execute_simulation(
     config: SimConfig,
@@ -44,9 +48,22 @@ def execute_simulation(
     """
     backend = backend or get_backend("auto")
 
-    run_id = str(uuid.uuid4())[:8]
-    output_dir = Path(output_root) / run_id
-    output_dir.mkdir(parents=True, exist_ok=True)
+    # Short run_ids are convenient but can collide; exist_ok=False makes a
+    # collision explicit and we retry with a fresh id rather than silently
+    # mixing two runs' outputs in one directory.
+    for _ in range(_RUN_ID_ATTEMPTS):
+        run_id = uuid.uuid4().hex[:8]
+        output_dir = Path(output_root) / run_id
+        try:
+            output_dir.mkdir(parents=True, exist_ok=False)
+            break
+        except FileExistsError:
+            continue
+    else:
+        raise RuntimeError(
+            f"Could not allocate a unique run directory under {output_root!s} "
+            f"after {_RUN_ID_ATTEMPTS} attempts."
+        )
 
     images = backend.generate(config)
     if not images:
