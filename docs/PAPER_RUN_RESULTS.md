@@ -4,6 +4,24 @@
 **This run supersedes the earlier mixed-model results** (gpt-5.2 planner-only run of
 Jul 20; Luna combined run of Jul 25) for all headline paper claims.
 
+> **CORRECTION 2026-08-12 — the resnet34 baseline is 21.28 M parameters, not 11.17 M.**
+> This document originally recorded 11.17 M for the `resnet34_ref` arm. That is the
+> parameter count of the **resnet18** preset, not resnet34. Every derived figure below
+> is corrected accordingly (the parameter reduction becomes ~8.4x, not ~4.4x);
+> accuracy, AUC and runtime numbers are unaffected.
+>
+> Evidence: `_BLOCKS_BY_NAME` in `src/dlens/tools/_torch_backends.py` maps
+> `resnet34 -> (3,4,6,3)` with widths `(64,128,256,512)`, which for 1 input channel and
+> 3 classes builds **21.280 M** parameters; the same table maps `resnet18 -> (2,2,2,2)`,
+> which builds **11.172 M** — the number that had been recorded. Confirmed physically:
+> every resnet34 checkpoint in the multi-seed pilot is **85,243,851 bytes** ≈ 21.31 M
+> float32 parameters, while the `cnn_medium_s4` checkpoints are 10,187,621 bytes
+> ≈ 2.55 M, matching that arm's stated 2.539 M. The model trained was therefore a
+> genuine ResNet-34; only the recorded count was wrong.
+>
+> Every other architecture parameter count cited in this repository was re-derived the
+> same way and is correct.
+
 ## Protocol
 
 - **LLM: gpt-5.2 for every role** (candidate generation, judge, planner) — asserted
@@ -49,7 +67,7 @@ beat it. **Winner: cnn_medium_s4.** Note the contrast with the Luna run: with
 |---|---|---|---|---|---|---|
 | search_winner (cnn_medium_s4) | 0 | 0.9994 | 0.8233 | 0.1761 | 0.9434 | overfitting → `augment` |
 | | 1 | 0.8872 | **0.8600** | 0.0272 | **0.9717** | guard: stop |
-| resnet34_ref (11.17M) | 0 | 0.9839 | 0.7517 | 0.2322 | 0.8922 | overfitting → `augment` |
+| resnet34_ref (21.28M) | 0 | 0.9839 | 0.7517 | 0.2322 | 0.8922 | overfitting → `augment` |
 | | 1 | 0.8233 | **0.8167** | 0.0066 | 0.9283 | guard: stop |
 
 Reproducibility spot-check: the resnet34 arm's iteration-0 numbers are **identical**
@@ -62,7 +80,7 @@ Jul 20): same diagnosis, LLM decision nondeterminism on the remedy — noted hon
 | Arm | Params | Val acc | **Test acc** | Val AUC | **Test AUC** |
 |---|---|---|---|---|---|
 | **search winner (cnn_medium_s4)** | 2.54M | 0.8600 | **0.8706** | 0.9717 | **0.9700** |
-| resnet34 reference | 11.17M | 0.8167 | 0.8100 | 0.9283 | 0.9293 |
+| resnet34 reference | 21.28M | 0.8167 | 0.8100 | 0.9283 | 0.9293 |
 
 Per-class on TEST (search winner): no_sub P/R/F1 0.894/1.000/0.944 · cdm
 0.885/0.720/0.794 · axion 0.835/0.892/0.862; confusion (rows=true no_sub,cdm,axion):
@@ -76,7 +94,7 @@ previous runs.
 confirms the val-selected models generalize.
 
 **Headline:** the searched architecture beats the hand-picked resnet34 reference by
-**+6.1 points test accuracy (0.8706 vs 0.8100)** and +0.041 test AUC with **~4.4×
+**+6.1 points test accuracy (0.8706 vs 0.8100)** and +0.041 test AUC with **~8.4×
 fewer parameters**, under an identical same-LLM, same-data, same-protocol pipeline.
 
 ## Runtime
