@@ -28,9 +28,16 @@ attempt 2). Luna passed 8 (its three Model_I passes were all attempt 1) but fail
 ## Failure modes
 
 - **Luna's one hard failure:** it imported `CDM` from `pyHalo.preset_models`, which
-  doesn't exist in our pinned pyHalo — a hallucinated-API import it never recovered
-  from across 3 retries. Notably this is *outside* the lenstronomy cheat-sheet's
-  coverage (we ground lenstronomy signatures, not pyHalo/deeplense) — same class of
+  doesn't exist in our pinned pyHalo, and never recovered across 3 retries.
+  **Terminology corrected 2026-08-12: this is version blending, not a hallucinated
+  API.** The import is *valid* for 2022-era pyHalo — DeepLenseSim's own `lens.py`
+  uses exactly that import — so nothing was invented; the symbol existed, in a
+  different release. The failure occurred against the image state before the pyHalo
+  era-pin commit `c88954c`. Calling it hallucination misdescribes the failure mode
+  and understates the case for version-pinning, which is the whole point of the
+  grounding work; `paper2/FACT_SHEET.md` §B1 records the corrected framing and the
+  papers use it. Notably this is *outside* the lenstronomy cheat-sheet's coverage
+  (we ground lenstronomy signatures, not pyHalo/deeplense) — same class of
   version-grounding gap we fixed for lenstronomy.
 - **Integration gotcha (documented for the framework):** gpt-5.6-* rejects function
   tools on `/v1/chat/completions` with reasoning enabled (HTTP 400: "use /v1/responses
