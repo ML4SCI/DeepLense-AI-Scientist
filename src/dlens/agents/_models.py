@@ -1,10 +1,13 @@
 from __future__ import annotations
-from pydantic_ai.models.openai import OpenAIModel
+from pydantic_ai.models.openai import OpenAIChatModel as OpenAIModel
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.ollama import OllamaProvider
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.providers.litellm import LiteLLMProvider
-from pydantic_ai.models.outlines import OutlinesModel
+try:
+    from pydantic_ai.models.outlines import OutlinesModel
+except ImportError:
+    OutlinesModel = None
 from llama_cpp import Llama
 
 
