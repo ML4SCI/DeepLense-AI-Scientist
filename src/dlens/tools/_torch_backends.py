@@ -51,6 +51,8 @@ def build_model(arch: ArchitectureSpec, dropout: float = 0.0):
       to the named preset, e.g. resnet18/resnet34, with classic widths).
     * ``cnn``    — VGG-like plain convnet: ``depths[i]`` 3x3 convs at ``widths[i]``
       channels per stage, maxpool between stages.
+    * ``vit``, ``mlpmixer``, ``hybrid``, ``equivariant`` — delegated to
+      ``dlens.tools._arch_families``; see that module for how depths/widths map.
 
     A Dropout layer is always present before the classifier (p=0 disables it) so
     checkpoint state_dict indices are stable regardless of the dropout setting.
@@ -70,6 +72,14 @@ def build_model(arch: ArchitectureSpec, dropout: float = 0.0):
     else:
         blocks = _BLOCKS_BY_NAME.get(arch.name.lower(), (2, 2, 2, 2))
         widths = (64, 128, 256, 512)[: len(blocks)]
+
+    # Families beyond cnn/resnet live in _arch_families (vit, mlpmixer, hybrid,
+    # equivariant). cnn/resnet stay here untouched: the published runs depend on
+    # their exact behaviour.
+    if arch.family not in (ArchFamily.CNN, ArchFamily.RESNET):
+        from dlens.tools._arch_families import build_family
+
+        return build_family(arch, dropout=dropout)
 
     if arch.family == ArchFamily.CNN:
         layers: list = []
