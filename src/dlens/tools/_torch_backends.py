@@ -161,9 +161,21 @@ class TorchTrainBackend:
 
     name = "torch"
 
-    def __init__(self, output_root: str = "models", device: str | None = None) -> None:
+    def __init__(
+        self, output_root: str = "models", device: str | None = None, seed: int = 0
+    ) -> None:
         self._output_root = output_root
         self._device_override = device
+        # Training seed. Default 0 reproduces every single-seed run on this branch;
+        # vary it for replication, where the spread across seeds IS the
+        # measurement. Mirrors exp/multi-seed exactly so results are comparable
+        # with the multi-seed pilot's resnet34 figures.
+        self._seed = seed
+
+    @property
+    def seed(self) -> int:
+        """The training seed this backend was constructed with."""
+        return self._seed
 
     def train(
         self, dataset: DatasetRef, architecture: ArchitectureSpec, config: TrainingConfig
@@ -175,7 +187,7 @@ class TorchTrainBackend:
         device = torch.device(self._device_override) if self._device_override else _device(torch)
         # Seeded so iterations differ only by the config changes being tested,
         # not by initialization/shuffling noise.
-        torch.manual_seed(0)
+        torch.manual_seed(self._seed)
         x, y = _load_images(dataset)
         mean, std = float(x.mean()), float(x.std() or 1.0)
         x = (x - mean) / std
@@ -183,7 +195,7 @@ class TorchTrainBackend:
         # Early stopping: hold out a seeded 10% slice of TRAIN (never touches val/).
         es_x = es_y = None
         if config.early_stop_patience > 0:
-            rng = np.random.default_rng(0)
+            rng = np.random.default_rng(self._seed)
             idx = rng.permutation(len(y))
             n_hold = max(1, len(y) // 10)
             hold, keep = idx[:n_hold], idx[n_hold:]

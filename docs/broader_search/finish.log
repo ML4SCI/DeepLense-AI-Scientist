@@ -1,0 +1,26 @@
+=== ROUND 3 (remaining candidates, 10 epochs) ===
+  cnn_s4_mid_w224       cnn       1.192M  val=0.9139 gap=+0.0257 auc=0.9840  286.2s
+  cnn_s4_w256_deeper    cnn       1.543M  val=0.8861 gap=+0.0201 auc=0.9788  291.1s
+  cnn_s4_wider_early    cnn        1.81M  val=0.8956 gap=+0.0207 auc=0.9801  527.9s
+
+  round-3 winner : cnn_s4_mid_w224 (0.9139)
+  incumbent      : cnn_deeper_s4 (0.9033)
+  new global best: round 3
+--- ROUND3 DONE ---
+Traceback (most recent call last):
+  File "/Users/asalunke/Personal/GSoC/DeepLense-AI-Scientist/scripts/finish_broader_search.py", line 205, in <module>
+    raise SystemExit(asyncio.run(main()))
+                     ^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.12/3.12.13_2/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/runners.py", line 195, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.12/3.12.13_2/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.12/3.12.13_2/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/base_events.py", line 691, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/Users/asalunke/Personal/GSoC/DeepLense-AI-Scientist/scripts/finish_broader_search.py", line 128, in main
+    from dlens.agents._experiment_loop import ExperimentLoop, ReActPlannerStrategy
+ImportError: cannot import name 'ReActPlannerStrategy' from 'dlens.agents._experiment_loop' (/Users/asalunke/Personal/GSoC/DeepLense-AI-Scientist/src/dlens/agents/_experiment_loop.py). Did you mean: 'PlannerStrategy'?
+--- TUNE DONE ---
