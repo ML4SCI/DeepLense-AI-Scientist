@@ -1,0 +1,119 @@
+{
+  "paper_run": {
+    "rows": [
+      {
+        "name": "resnet_wide_shallow_s3",
+        "judge_rank": 1,
+        "judge_score": 10,
+        "val_accuracy": 0.5211111111111111,
+        "params_m": 1.227
+      },
+      {
+        "name": "resnet_small_s4",
+        "judge_rank": 2,
+        "judge_score": 9,
+        "val_accuracy": 0.7188888888888889,
+        "params_m": 2.797
+      },
+      {
+        "name": "cnn_small_deep_s4",
+        "judge_rank": 3,
+        "judge_score": 8,
+        "val_accuracy": 0.7022222222222222,
+        "params_m": 1.911
+      },
+      {
+        "name": "cnn_medium_s4",
+        "judge_rank": 4,
+        "judge_score": 7,
+        "val_accuracy": 0.7733333333333333,
+        "params_m": 2.539
+      }
+    ],
+    "kendall_tau": -0.6666666666666666,
+    "spearman": -0.8,
+    "judge_top1": "resnet_wide_shallow_s3",
+    "empirical_best": "cnn_medium_s4",
+    "judge_top1_is_best": false
+  },
+  "ai_scientist_run": {
+    "rows": [
+      {
+        "name": "cnn_medium_multistage",
+        "judge_rank": 1,
+        "judge_score": 9,
+        "val_accuracy": 0.5983333333333334,
+        "params_m": 0.294
+      },
+      {
+        "name": "resnet18_compact",
+        "judge_rank": 2,
+        "judge_score": 8,
+        "val_accuracy": 0.5816666666666667,
+        "params_m": 0.701
+      },
+      {
+        "name": "cnn_small_wide",
+        "judge_rank": 3,
+        "judge_score": 7,
+        "val_accuracy": 0.3572222222222222,
+        "params_m": 0.093
+      },
+      {
+        "name": "resnet_deep_narrow",
+        "judge_rank": 4,
+        "judge_score": 6,
+        "val_accuracy": 0.5794444444444444,
+        "params_m": 1.094
+      }
+    ],
+    "kendall_tau": 0.6666666666666666,
+    "spearman": 0.8,
+    "judge_top1": "cnn_medium_multistage",
+    "empirical_best": "cnn_medium_multistage",
+    "judge_top1_is_best": true
+  },
+  "expB_pilot": {
+    "rows": [
+      {
+        "name": "resnet_s3_deeper_d4-4-4_w32-64-128",
+        "judge_rank": 1,
+        "judge_score": 10,
+        "val_accuracy": 0.8855555555555555,
+        "params_m": 1.472
+      },
+      {
+        "name": "resnet_s2_wide_d3-3_w64-128",
+        "judge_rank": 2,
+        "judge_score": 9,
+        "val_accuracy": 0.8805555555555555,
+        "params_m": 1.047
+      },
+      {
+        "name": "resnet_s3_narrow_d2-2-2_w24-48-96",
+        "judge_rank": 3,
+        "judge_score": 8,
+        "val_accuracy": 0.8588888888888889,
+        "params_m": 0.393
+      },
+      {
+        "name": "cnn_s3_wide_d2-3-3_w64-128-256",
+        "judge_rank": 4,
+        "judge_score": 7,
+        "val_accuracy": 0.7916666666666666,
+        "params_m": 1.884
+      }
+    ],
+    "kendall_tau": 1.0,
+    "spearman": 1.0,
+    "judge_top1": "resnet_s3_deeper_d4-4-4_w32-64-128",
+    "empirical_best": "resnet_s3_deeper_d4-4-4_w32-64-128",
+    "judge_top1_is_best": true
+  },
+  "_pooled": {
+    "n": 12,
+    "kendall_tau": 0.21212121212121213,
+    "spearman": 0.2719876922703222,
+    "caveat": "Only the judge-selected top-4 of each run were ever trained, so this is a restricted-range correlation; the 5-6 lower-ranked candidates per run have no empirical outcome."
+  }
+}
