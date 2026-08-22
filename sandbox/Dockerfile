@@ -23,7 +23,13 @@ RUN pip install --no-cache-dir \
         "numpy<2" "scipy<1.14" "astropy<6" colossus "lenstronomy==1.9.2"
 
 # Substructure realizations (pyHalo) + the DeepLenseSim convenience wrapper (`deeplense`).
-RUN pip install --no-cache-dir "git+https://github.com/dangilman/pyHalo.git"
+# pyHalo is pinned to a 2022-era commit and installed editable: DeepLenseSim's
+# lens.py does `from pyHalo.preset_models import CDM`, which current pyHalo no
+# longer exports, later 2022 commits need a newer lenstronomy (gnfw profile), and
+# a non-editable install of this vintage drops subpackages (pyHalo.Cosmology).
+RUN git clone https://github.com/dangilman/pyHalo.git /opt/pyHalo \
+    && cd /opt/pyHalo && git checkout 64582dbd2342 \
+    && pip install --no-cache-dir -e /opt/pyHalo
 RUN pip install --no-cache-dir "git+https://github.com/mwt5345/DeepLenseSim.git"
 
 # Untrusted generated code runs as a non-root user.

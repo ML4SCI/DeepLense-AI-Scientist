@@ -1,0 +1,32 @@
+=== TUNING cnn_s4_mid_w224 (search val 0.9139) seed=1 ===
+
+=== iteration 0: arch=cnn_s4_mid_w224 dropout=0.0 augment=False wd=0.0001 epochs=25 es_patience=0 ===
+    train=0.9986  val=0.9006  gap=0.0980  auc=0.9791
+    planner[react]: train {'training': {'augment': True}}
+    reasoning: Train acc is near-saturated (0.9986) while validation accuracy is 0.9006, indicating a large generalization gap/overfitting. No augmentation and dropout=0.0; adding data augmentation is the smallest intervention likely to improve robustness and class boundary generalization (notably cdm recall 0.822
+
+=== iteration 1: arch=cnn_s4_mid_w224 dropout=0.0 augment=True wd=0.0001 epochs=25 es_patience=0 ===
+Error: command buffer exited with error status.
+	The Metal Performance Shaders operations encoded on it may not have completed.
+	Error: 
+	(null)
+	Discarded (victim of GPU error/recovery) (00000005:kIOGPUCommandBufferCallbackErrorInnocentVictim)
+	<AGXG14XFamilyCommandBuffer: 0xc7f8cce00>
+    label = <none> 
+    device = <AGXG14SDevice: 0xc527f8000>
+        name = Apple M2 Pro 
+    commandQueue = <AGXG14XFamilyCommandQueue: 0x103b0b7a0>
+        label = <none> 
+        device = <AGXG14SDevice: 0xc527f8000>
+            name = Apple M2 Pro 
+    retainedReferences = 1
+    train=0.9311  val=0.9256  gap=0.0055  auc=0.9890
+
+  trajectory:
+    it0: train=0.9986 val=0.9006 gap=+0.0980 -> train
+    it1: train=0.9311 val=0.9256 gap=+0.0055 -> report
+
+  best iteration : it1 val=0.9256
+  HELD-OUT TEST  : acc=0.9344 auc=0.9891 (n=1800, evaluated once)
+
+artifacts -> docs/broader_search/tuning_seed1.json

@@ -1,0 +1,201 @@
+{
+  "hypothesis": "Starting from a resnet34 that overfits DeepLense Model_I (train>>val), can iterative planner-driven changes close the generalization gap?",
+  "current_iteration": 1,
+  "max_iterations": 4,
+  "runs": [
+    {
+      "iteration": 0,
+      "sim_config": null,
+      "sim_output": null,
+      "architecture": {
+        "name": "resnet34",
+        "family": "resnet",
+        "input_shape": [
+          150,
+          150
+        ],
+        "channels": 1,
+        "num_classes": 3,
+        "physics_informed": false,
+        "rationale": ""
+      },
+      "training_config": {
+        "loss": "cross_entropy",
+        "optimizer": "adamw",
+        "learning_rate": 0.0003,
+        "batch_size": 32,
+        "epochs": 25,
+        "weight_decay": 0.0001,
+        "lr_scheduler": "cosine",
+        "dropout": 0.0,
+        "augment": false,
+        "early_stop_patience": 0
+      },
+      "train_result": {
+        "run_id": "93a37a06",
+        "weights_path": "/Users/asalunke/Personal/GSoC/deeplense_data/model1/loop_runs/93a37a06/model.pt",
+        "backend": "torch",
+        "num_classes": 3,
+        "metrics": {
+          "train_accuracy": 0.9839,
+          "final_loss": 0.0616
+        },
+        "epochs_run": 25
+      },
+      "infer_result": {
+        "run_id": "793f240d",
+        "num_samples": 1800,
+        "num_classes": 3,
+        "accuracy": 0.7516666666666667,
+        "backend": "torch"
+      },
+      "analysis_result": {
+        "accuracy": 0.7516666666666667,
+        "macro_auc": 0.8921652777777779,
+        "confusion_matrix": [
+          [
+            543,
+            57,
+            0
+          ],
+          [
+            72,
+            376,
+            152
+          ],
+          [
+            5,
+            161,
+            434
+          ]
+        ],
+        "per_class": {
+          "no_sub": {
+            "precision": 0.8758,
+            "recall": 0.905,
+            "f1": 0.8902,
+            "support": 600.0
+          },
+          "cdm": {
+            "precision": 0.633,
+            "recall": 0.6267,
+            "f1": 0.6298,
+            "support": 600.0
+          },
+          "axion": {
+            "precision": 0.7406,
+            "recall": 0.7233,
+            "f1": 0.7319,
+            "support": 600.0
+          }
+        },
+        "summary": "accuracy=0.752, macro_auc=0.892; weakest recall on class 'cdm'."
+      },
+      "planner_decision": {
+        "action": "train",
+        "rationale": "Run 0 shows strong overfitting: train_accuracy=0.9839 vs val accuracy=0.7517 (gap ~0.23) with no augmentation and dropout=0.0. Next smallest intervention to improve generalization is to enable data augmentation; this should reduce memorization and help the weaker 'cdm' class (recall=0.6267) by exposing more variability without changing architecture or optimizer.",
+        "updated_params": {
+          "training": {
+            "augment": true,
+            "early_stop_patience": 5
+          }
+        }
+      }
+    },
+    {
+      "iteration": 1,
+      "sim_config": null,
+      "sim_output": null,
+      "architecture": {
+        "name": "resnet34",
+        "family": "resnet",
+        "input_shape": [
+          150,
+          150
+        ],
+        "channels": 1,
+        "num_classes": 3,
+        "physics_informed": false,
+        "rationale": ""
+      },
+      "training_config": {
+        "loss": "cross_entropy",
+        "optimizer": "adamw",
+        "learning_rate": 0.0003,
+        "batch_size": 32,
+        "epochs": 25,
+        "weight_decay": 0.0001,
+        "lr_scheduler": "cosine",
+        "dropout": 0.0,
+        "augment": true,
+        "early_stop_patience": 5
+      },
+      "train_result": {
+        "run_id": "462df473",
+        "weights_path": "/Users/asalunke/Personal/GSoC/deeplense_data/model1/loop_runs/462df473/model.pt",
+        "backend": "torch",
+        "num_classes": 3,
+        "metrics": {
+          "train_accuracy": 0.7926,
+          "final_loss": 0.4478,
+          "holdout_accuracy": 0.8056
+        },
+        "epochs_run": 25
+      },
+      "infer_result": {
+        "run_id": "fa3f59f0",
+        "num_samples": 1800,
+        "num_classes": 3,
+        "accuracy": 0.8016666666666666,
+        "backend": "torch"
+      },
+      "analysis_result": {
+        "accuracy": 0.8016666666666666,
+        "macro_auc": 0.918700462962963,
+        "confusion_matrix": [
+          [
+            591,
+            9,
+            0
+          ],
+          [
+            42,
+            340,
+            218
+          ],
+          [
+            5,
+            83,
+            512
+          ]
+        ],
+        "per_class": {
+          "no_sub": {
+            "precision": 0.9263,
+            "recall": 0.985,
+            "f1": 0.9548,
+            "support": 600.0
+          },
+          "cdm": {
+            "precision": 0.787,
+            "recall": 0.5667,
+            "f1": 0.6589,
+            "support": 600.0
+          },
+          "axion": {
+            "precision": 0.7014,
+            "recall": 0.8533,
+            "f1": 0.7699,
+            "support": 600.0
+          }
+        },
+        "summary": "accuracy=0.802, macro_auc=0.919; weakest recall on class 'cdm'."
+      },
+      "planner_decision": {
+        "action": "report",
+        "rationale": "[loop guard] train/val gap -0.009 <= threshold 0.06 \u2014 gap closed.",
+        "updated_params": {}
+      }
+    }
+  ]
+}

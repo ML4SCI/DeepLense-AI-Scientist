@@ -1,0 +1,146 @@
+==============================================================================
+  AI SCIENTIST — architecture tree search + closed-loop tuning
+  llm=gpt-5.2 | data=7200 train / 1800 val | (150, 150)px
+==============================================================================
+
+==============================================================================
+  PHASE A — TREE-BASED ARCHITECTURE SEARCH
+==============================================================================
+
+[search] === ROUND 1/3 === generated 10 (0 unbuildable, 0 duplicate) in 13.8s
+    [0] cnn_tiny_s3                        cnn          depths=[2, 2, 2] widths=[16, 32, 64] (~0.072M)
+    [1] cnn_deeper_s4                      cnn          depths=[3, 3, 3, 2] widths=[32, 64, 128, 256] (~1.367M)
+    [2] resnet_micro_4stage                resnet       depths=[1, 1, 1, 1] widths=[32, 64, 128, 256] (~1.228M)
+    [3] resnet18ish_widened                resnet       depths=[2, 2, 2, 2] widths=[64, 128, 256, 512] (~11.172M)
+    [4] resnet_deep_narrow                 resnet       depths=[4, 4, 3, 2] widths=[32, 64, 128, 256] (~3.277M)
+    [5] vit_small_8b_d192                  vit          depths=[2, 2, 2, 2] widths=[192, 192, 192, 192] (~3.623M)
+    [6] vit_base_12b_d384                  vit          depths=[3, 3, 3, 3] widths=[384, 384, 384, 384] (~21.421M)
+    [7] mlpmixer_small_8b_d256             mlpmixer     depths=[4, 4] widths=[256, 256] (~2.252M)
+    [8] hybrid_conv2_attn6                 hybrid       depths=[2, 2, 6] widths=[32, 64, 256] (~4.838M)
+    [9] equivariant_c4_mid                 equivariant  depths=[2, 2, 2] widths=[16, 32, 64] (~0.287M)
+[search] judge ranking: [9, 4, 2, 1, 8, 5, 7, 3, 6, 0] -> top-4: ['equivariant_c4_mid', 'resnet_deep_narrow', 'resnet_micro_4stage', 'cnn_deeper_s4'] (7.5s)
+    judge reasoning: Given 7200 train / 1800 val on 150x150 grayscale, best generalization is likely from models with enough capacity to avoid underfitting but not so large they overfit without massive augmentation/regularization. Inductive bias matters: convolutional/residual and equivariant biases often help in limite
+    epoch 1/10  loss=1.1032  acc=0.3432
+    epoch 2/10  loss=1.0897  acc=0.3764
+    epoch 3/10  loss=1.0784  acc=0.3969
+    epoch 4/10  loss=1.0373  acc=0.4754
+    epoch 5/10  loss=0.9253  acc=0.5843
+    epoch 6/10  loss=0.8545  acc=0.6249
+    epoch 7/10  loss=0.8088  acc=0.6608
+    epoch 8/10  loss=0.7779  acc=0.6901
+    epoch 9/10  loss=0.7664  acc=0.7018
+    epoch 10/10  loss=0.7535  acc=0.7163
+    [round1] equivariant_c4_mid val=0.7206 gap=-0.0043 auc=0.8796 (695.1s)
+    epoch 1/10  loss=1.0852  acc=0.3858
+    epoch 2/10  loss=0.7391  acc=0.6233
+    epoch 3/10  loss=0.5875  acc=0.7128
+    epoch 4/10  loss=0.5356  acc=0.7453
+    epoch 5/10  loss=0.4851  acc=0.7701
+    epoch 6/10  loss=0.4510  acc=0.7900
+    epoch 7/10  loss=0.3970  acc=0.8228
+    epoch 8/10  loss=0.3609  acc=0.8450
+    epoch 9/10  loss=0.3048  acc=0.8719
+    epoch 10/10  loss=0.2726  acc=0.8864
+    [round1] resnet_deep_narrow val=0.8778 gap=+0.0086 auc=0.9637 (95.4s)
+    epoch 1/10  loss=0.9542  acc=0.5025
+    epoch 2/10  loss=0.6327  acc=0.6932
+    epoch 3/10  loss=0.5449  acc=0.7494
+    epoch 4/10  loss=0.4976  acc=0.7789
+    epoch 5/10  loss=0.4215  acc=0.8142
+    epoch 6/10  loss=0.3515  acc=0.8499
+    epoch 7/10  loss=0.2787  acc=0.8872
+    epoch 8/10  loss=0.2064  acc=0.9231
+    epoch 9/10  loss=0.1652  acc=0.9403
+    epoch 10/10  loss=0.1330  acc=0.9576
+    [round1] resnet_micro_4stage val=0.8433 gap=+0.1143 auc=0.9529 (48.3s)
+    epoch 1/10  loss=1.1048  acc=0.3354
+    epoch 2/10  loss=1.0816  acc=0.3999
+    epoch 3/10  loss=0.8987  acc=0.6196
+    epoch 4/10  loss=0.5316  acc=0.8078
+    epoch 5/10  loss=0.3828  acc=0.8557
+    epoch 6/10  loss=0.3084  acc=0.8850
+    epoch 7/10  loss=0.2610  acc=0.9064
+    epoch 8/10  loss=0.2243  acc=0.9201
+    epoch 9/10  loss=0.2010  acc=0.9292
+    epoch 10/10  loss=0.1836  acc=0.9346
+    [round1] cnn_deeper_s4      val=0.9033 gap=+0.0313 auc=0.9821 (285.4s)
+[search] round-1 winner: cnn_deeper_s4 (val=0.9033); best so far: cnn_deeper_s4 (val=0.9033)
+
+[search] === ROUND 2/3 === generated 10 (0 unbuildable, 0 duplicate) in 13.3s
+    [0] cnn_balanced_s4_midplus            cnn          depths=[2, 3, 3, 2] widths=[32, 64, 128, 192] (~1.026M)
+    [1] cnn_wide_shallow_s3                cnn          depths=[2, 2, 2] widths=[64, 128, 256] (~1.146M)
+    [2] cnn_deeper_wider_s4                cnn          depths=[4, 4, 3, 2] widths=[32, 64, 128, 256] (~1.414M)
+    [3] resnet_medium_balanced             resnet       depths=[3, 3, 3, 2] widths=[32, 64, 128, 256] (~3.184M)
+    [4] resnet_wide_mid                    resnet       depths=[3, 3, 2, 2] widths=[48, 96, 192, 384] (~6.495M)
+    [5] resnet_shallow_wide_3stage         resnet       depths=[2, 2, 2] widths=[64, 128, 256] (~2.777M)
+    [6] equivariant_c4_big                 equivariant  depths=[3, 3, 3] widths=[32, 64, 128] (~1.92M)
+    [7] hybrid_conv2_attn6                 hybrid       depths=[2, 2, 6] widths=[32, 64, 192] (~2.76M)
+    [8] vit_tiny_8blk_d192                 vit          depths=[4, 4] widths=[96, 192] (~3.623M)
+    [9] mlpmixer_small_8blk_d256           mlpmixer     depths=[3, 3, 2] widths=[128, 192, 256] (~2.252M)
+[search] judge ranking: [6, 3, 2, 0, 1, 5, 7, 4, 9, 8] -> top-4: ['equivariant_c4_big', 'resnet_medium_balanced', 'cnn_deeper_wider_s4', 'cnn_balanced_s4_midplus'] (9.5s)
+    judge reasoning: Dataset size (~7.2k train) and 150x150 grayscale suggests moderate model capacity with strong inductive bias is preferable; too small risks underfitting, too large/weak bias risks overfitting. CNN/ResNet families provide locality/translation bias; equivariant adds useful symmetry priors for lensing-
+    epoch 1/10  loss=1.1034  acc=0.3390
+    epoch 2/10  loss=1.0313  acc=0.4487
+    epoch 3/10  loss=0.8541  acc=0.5811
+    epoch 4/10  loss=0.7594  acc=0.6528
+    epoch 5/10  loss=0.6752  acc=0.7131
+    epoch 6/10  loss=0.6240  acc=0.7410
+    epoch 7/10  loss=0.5785  acc=0.7693
+    epoch 8/10  loss=0.5486  acc=0.7847
+    epoch 9/10  loss=0.5205  acc=0.8051
+    epoch 10/10  loss=0.5115  acc=0.8058
+    [round2] equivariant_c4_big val=0.8056 gap=+0.0002 auc=0.9304 (3160.8s)
+    epoch 1/10  loss=0.9939  acc=0.4683
+    epoch 2/10  loss=0.6591  acc=0.6750
+    epoch 3/10  loss=0.5654  acc=0.7232
+    epoch 4/10  loss=0.5009  acc=0.7681
+    epoch 5/10  loss=0.4691  acc=0.7869
+    epoch 6/10  loss=0.4318  acc=0.8067
+    epoch 7/10  loss=0.3762  acc=0.8343
+    epoch 8/10  loss=0.3231  acc=0.8608
+    epoch 9/10  loss=0.2750  acc=0.8854
+    epoch 10/10  loss=0.2475  acc=0.9008
+    [round2] resnet_medium_balanced val=0.8761 gap=+0.0247 auc=0.9636 (91.4s)
+    epoch 1/10  loss=1.1024  acc=0.3358
+    epoch 2/10  loss=1.0989  acc=0.3508
+    epoch 3/10  loss=1.0990  acc=0.3526
+    epoch 4/10  loss=1.0881  acc=0.3722
+    epoch 5/10  loss=0.9973  acc=0.5311
+    epoch 6/10  loss=0.7198  acc=0.7119
+    epoch 7/10  loss=0.5041  acc=0.8146
+    epoch 8/10  loss=0.3810  acc=0.8626
+    epoch 9/10  loss=0.3185  acc=0.8810
+    epoch 10/10  loss=0.2890  acc=0.8929
+    [round2] cnn_deeper_wider_s4 val=0.8872 gap=+0.0057 auc=0.9780 (384.6s)
+    epoch 1/10  loss=1.1028  acc=0.3301
+    epoch 2/10  loss=1.0878  acc=0.3878
+    epoch 3/10  loss=1.0036  acc=0.5228
+    epoch 4/10  loss=0.7402  acc=0.7403
+    epoch 5/10  loss=0.5099  acc=0.8243
+    epoch 6/10  loss=0.3880  acc=0.8639
+    epoch 7/10  loss=0.3302  acc=0.8821
+    epoch 8/10  loss=0.2795  acc=0.9014
+    epoch 9/10  loss=0.2447  acc=0.9154
+    epoch 10/10  loss=0.2276  acc=0.9224
+    [round2] cnn_balanced_s4_midplus val=0.8983 gap=+0.0241 auc=0.9810 (242.3s)
+[search] round-2 winner: cnn_balanced_s4_midplus (val=0.8983); best so far: cnn_deeper_s4 (val=0.9033)
+
+[search] === ROUND 3/3 === generated 10 (0 unbuildable, 1 duplicate) in 12.5s
+    [0] cnn_s4_w256_deeper                 cnn          depths=[2, 4, 4, 2] widths=[32, 64, 128, 256] (~1.543M)
+    [1] cnn_s4_mid_w224                    cnn          depths=[3, 3, 3, 2] widths=[32, 64, 128, 224] (~1.192M)
+    [2] cnn_s4_wider_early                 cnn          depths=[3, 3, 3, 2] widths=[48, 96, 160, 256] (~1.81M)
+    [3] cnn_s4_deep_small_last             cnn          depths=[4, 4, 3, 1] widths=[32, 64, 128, 256] (~0.823M)
+    [4] resnet_balanced_w224               resnet       depths=[3, 3, 3, 2] widths=[32, 64, 128, 224] (~2.728M)
+    [5] resnet_deeper_midstage             resnet       depths=[2, 4, 4, 2] widths=[32, 64, 128, 256] (~3.535M)
+    [6] equivariant_c4_wider               equivariant  depths=[4, 3, 2] widths=[24, 48, 96] (~0.769M)
+    [7] vit_8blocks_d256                   vit          depths=[2, 2, 2, 2] widths=[128, 128, 128, 256] (~6.403M)
+    [8] mlpmixer_8blocks_d256              mlpmixer     depths=[3, 3, 2] widths=[128, 128, 256] (~2.252M)
+[search] judge ranking: [6, 1, 0, 2, 3, 4, 5, 8, 7] -> top-4: ['equivariant_c4_wider', 'cnn_s4_mid_w224', 'cnn_s4_w256_deeper', 'cnn_s4_wider_early'] (6.2s)
+    judge reasoning: Given 7.2k training images, architectures in the ~0.7–2.5M parameter range are likely to strike a better bias/variance tradeoff than very large models (6M+) while still having enough capacity to avoid underfitting. Family-wise, ResNets often optimize deeper stacks more reliably than plain CNNs at si
+    epoch 1/10  loss=1.1032  acc=0.3368
+    epoch 2/10  loss=1.0938  acc=0.3675
+    epoch 3/10  loss=1.0728  acc=0.4097
+    epoch 4/10  loss=0.9352  acc=0.5440
+    epoch 5/10  loss=0.8010  acc=0.6425
+    epoch 6/10  loss=0.7360  acc=0.6828
+    epoch 7/10  loss=0.6882  acc=0.7168

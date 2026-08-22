@@ -1,0 +1,60 @@
+{
+  "stage": "round3",
+  "epochs": 10,
+  "n_train": 7200,
+  "n_val": 1800,
+  "results": [
+    {
+      "name": "cnn_s4_mid_w224",
+      "family": "cnn",
+      "params_m": 1.192,
+      "train_accuracy": 0.9396,
+      "val_accuracy": 0.9138888888888889,
+      "gap": 0.0257,
+      "macro_auc": 0.9840342592592592,
+      "train_seconds": 286.2,
+      "weights_path": "/Users/asalunke/Personal/GSoC/deeplense_data/model1/finish_runs/2362d337/model.pt"
+    },
+    {
+      "name": "cnn_s4_w256_deeper",
+      "family": "cnn",
+      "params_m": 1.543,
+      "train_accuracy": 0.9062,
+      "val_accuracy": 0.8861111111111111,
+      "gap": 0.0201,
+      "macro_auc": 0.9787773148148148,
+      "train_seconds": 291.1,
+      "weights_path": "/Users/asalunke/Personal/GSoC/deeplense_data/model1/finish_runs/b6298ecf/model.pt"
+    },
+    {
+      "name": "cnn_s4_wider_early",
+      "family": "cnn",
+      "params_m": 1.81,
+      "train_accuracy": 0.9163,
+      "val_accuracy": 0.8955555555555555,
+      "gap": 0.0207,
+      "macro_auc": 0.9801314814814814,
+      "train_seconds": 527.9,
+      "weights_path": "/Users/asalunke/Personal/GSoC/deeplense_data/model1/finish_runs/e0b13f1e/model.pt"
+    }
+  ],
+  "deferred": [
+    {
+      "name": "equivariant_c4_wider",
+      "family": "equivariant",
+      "depths": [
+        4,
+        3,
+        2
+      ],
+      "widths": [
+        24,
+        48,
+        96
+      ],
+      "reason": "projected ~1080 s/epoch -> ~3 h for a 10-epoch evaluation"
+    }
+  ],
+  "round3_winner": "cnn_s4_mid_w224",
+  "beats_incumbent": true
+}

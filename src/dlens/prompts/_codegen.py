@@ -29,7 +29,7 @@ LENSTRONOMY API CHEAT-SHEET (verified against the sandbox's installed version, l
     kwargs_data = sim_util.data_configure_simple(numPix, deltaPix, exposure_time=None, background_rms=None)
     data_class = ImageData(**kwargs_data)
 - PSF (use fwhm; there is NO 'sigma' argument):
-    psf_class = PSF(psf_type='GAUSSIAN', fwhm=0.15, pixel_size=delta_pix)
+    psf_class = PSF(psf_type='GAUSSIAN', fwhm=0.15, pixel_size=deltaPix)
 - Models (first arg is the list; kwargs are LISTS of dicts, one per profile):
     lens_model_class = LensModel(lens_model_list=['SIE', 'SHEAR'])
     kwargs_lens = [{'theta_E': ..., 'e1': ..., 'e2': ..., 'center_x': 0, 'center_y': 0},
@@ -47,7 +47,7 @@ LENSTRONOMY API CHEAT-SHEET (verified against the sandbox's installed version, l
     image = image_model.image(kwargs_lens=kwargs_lens, kwargs_source=kwargs_source)\
 """
 
-CODEGEN_SYSTEM_PROMPT = """\
+CODEGEN_SYSTEM_PROMPT_UNGROUNDED = """\
 You write a single, self-contained Python script that simulates a strong
 gravitational-lensing image described in natural language, using lenstronomy.
 
@@ -75,4 +75,8 @@ TWO VALID APPROACHES:
 Keep it minimal and correct. In `reasoning`, briefly note the lens model, source,
 instrument, and substructure you chose and why.
 
-""" + LENSTRONOMY_API_CHEATSHEET
+"""
+
+# Grounded variant (the default system): base prompt + the version-pinned
+# lenstronomy API cheat-sheet.
+CODEGEN_SYSTEM_PROMPT = CODEGEN_SYSTEM_PROMPT_UNGROUNDED + "\n" + LENSTRONOMY_API_CHEATSHEET

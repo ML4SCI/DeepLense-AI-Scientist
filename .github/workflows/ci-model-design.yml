@@ -1,0 +1,35 @@
+name: CI (model-design)
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint-and-test:
+    name: Lint + offline tests (model design)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync
+
+      # Lint is scoped to the modules added by this PR.
+      - name: Lint (ruff, model-design modules only)
+        run: >
+          uv run ruff check
+          src/dlens/schemas/_model_design.py
+          src/dlens/tools/_model_design.py
+          src/dlens/prompts/_model_design.py
+          src/dlens/agents/_model_design.py
+          src/dlens/agents/_scripted_model_design.py
+          tests/test_model_design_agent.py
+
+      - name: Tests (fully offline — scripted model)
+        run: uv run pytest

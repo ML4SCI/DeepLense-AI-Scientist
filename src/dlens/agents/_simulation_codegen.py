@@ -16,12 +16,14 @@ from pydantic import Field
 
 from dlens.agents._base import BaseAgentConfig, DLensBaseAgent, OutputSchema
 from dlens.agents._models import OpenAIModel
-from dlens.prompts._codegen import CODEGEN_SYSTEM_PROMPT
+from dlens.prompts._codegen import CODEGEN_SYSTEM_PROMPT, CODEGEN_SYSTEM_PROMPT_UNGROUNDED
 from dlens.schemas._codegen import CodegenResult, SimSpec, ValidationResult
 from dlens.tools._sandbox import ExecResult, Sandbox, get_sandbox
 
 # Code generation needs a capable model; local Ollama models hallucinate here.
-DEFAULT_CODEGEN_MODEL = "gpt-4o-mini"
+# gpt-5.2 matches the paper protocol and works on chat completions (the Responses
+# API is only required for the gpt-5.6 family).
+DEFAULT_CODEGEN_MODEL = "gpt-5.2"
 
 
 class GeneratedProgram(OutputSchema):
@@ -30,8 +32,14 @@ class GeneratedProgram(OutputSchema):
     code: str = Field(description="A self-contained, runnable lenstronomy script.")
 
 
-def validate_output(result: ExecResult) -> ValidationResult:
-    """Validate a sandbox run: did it produce a finite, non-trivial 2-D image?"""
+def validate_output(
+    result: ExecResult, expected_shape: tuple[int, int] | None = None
+) -> ValidationResult:
+    """Validate a sandbox run: did it produce a finite, non-trivial 2-D image?
+
+    When ``expected_shape`` is given (i.e. the request specified an image size),
+    the produced image must match it exactly.
+    """
     checks = {
         "ran": result.ok,
         "produced_output": result.output_path is not None,
@@ -39,8 +47,14 @@ def validate_output(result: ExecResult) -> ValidationResult:
         "finite": False,
         "non_trivial": False,
     }
+    if expected_shape is not None:
+        checks["matches_requested_size"] = False
     if not result.output_path:
-        return ValidationResult(passed=False, checks=checks, message=result.error or "no output")
+        if result.ok:
+            msg = "script ran (exit 0) but wrote no output to the DLENS_OUTPUT path"
+        else:
+            msg = result.error or "process failed before producing output"
+        return ValidationResult(passed=False, checks=checks, message=msg)
     try:
         arr = np.load(result.output_path)
     except Exception as exc:  # noqa: BLE001 - report any load failure
@@ -49,6 +63,8 @@ def validate_output(result: ExecResult) -> ValidationResult:
     checks["is_2d"] = arr.ndim == 2
     checks["finite"] = bool(np.all(np.isfinite(arr)))
     checks["non_trivial"] = bool(arr.size > 0 and float(np.max(arr) - np.min(arr)) > 0.0)
+    if expected_shape is not None:
+        checks["matches_requested_size"] = tuple(arr.shape) == tuple(expected_shape)
     passed = result.ok and all(checks.values())
     failed = [k for k, v in checks.items() if not v]
     return ValidationResult(
@@ -70,6 +86,7 @@ class SimulationCodegenAgent(DLensBaseAgent):
         config: BaseAgentConfig | None = None,
         max_retries: int = 3,
         timeout: float = 120.0,
+        grounded: bool = True,
         debug: bool = False,
         retries: int = 2,
     ) -> None:
@@ -80,7 +97,8 @@ class SimulationCodegenAgent(DLensBaseAgent):
                     "Generates and validates lenstronomy simulation code from a "
                     "natural-language physics specification."
                 ),
-                custom_system_prompt=CODEGEN_SYSTEM_PROMPT,
+                custom_system_prompt=(CODEGEN_SYSTEM_PROMPT if grounded
+                                      else CODEGEN_SYSTEM_PROMPT_UNGROUNDED),
                 model=model or OpenAIModel(model_name=DEFAULT_CODEGEN_MODEL),
                 debug=debug,
             )
@@ -102,8 +120,14 @@ class SimulationCodegenAgent(DLensBaseAgent):
             query += f"\n\nThe previous attempt failed validation:\n{last_error}\nFix the code."
         return await self.arun(query)
 
-    async def generate_and_validate(self, spec: SimSpec) -> CodegenResult:
-        """Generate -> run in sandbox -> validate, retrying up to ``max_retries``."""
+    async def generate_and_validate(
+        self, spec: SimSpec, *, expected_shape: tuple[int, int] | None = None
+    ) -> CodegenResult:
+        """Generate -> run in sandbox -> validate, retrying up to ``max_retries``.
+
+        ``expected_shape`` (when the request pins an image size) is enforced by the
+        validation harness and included in the retry feedback.
+        """
         last_error: str | None = None
         code = ""
         reasoning = ""
@@ -112,7 +136,7 @@ class SimulationCodegenAgent(DLensBaseAgent):
             program = (await self.generate(spec, last_error=last_error)).output
             code, reasoning = program.code, program.reasoning
             exec_result = self.sandbox.run(code, timeout=self.timeout)
-            validation = validate_output(exec_result)
+            validation = validate_output(exec_result, expected_shape=expected_shape)
             if validation.passed:
                 return CodegenResult(
                     reasoning=reasoning, spec=spec, code=code, ok=True,

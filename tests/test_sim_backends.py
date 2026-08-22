@@ -1,0 +1,136 @@
+"""Mock backend, runner, output layout, and backend selection (offline)."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import numpy as np
+import pytest
+
+from dlens.schemas import SimConfig, SimModelConfig, SubstructureType
+from dlens.tools._sim_backends import MockBackend, deeplense_available, get_backend
+from dlens.tools._sim_runner import execute_simulation
+
+
+def _cfg(**kw):
+    base = dict(substructure_type=SubstructureType.CDM, num_images=3)
+    base.update(kw)
+    return SimConfig(**base)
+
+
+def test_mock_shapes_and_dtypes_match_model_config():
+    mb = MockBackend(seed=0)
+    imgs_i = mb.generate(_cfg(model_config_name=SimModelConfig.MODEL_I))
+    imgs_ii = mb.generate(_cfg(model_config_name=SimModelConfig.MODEL_II))
+    imgs_iii = mb.generate(_cfg(model_config_name=SimModelConfig.MODEL_III))
+    assert all(im.shape == (150, 150) for im in imgs_i)
+    assert all(im.shape == (64, 64) for im in imgs_ii)
+    # Model_III (HST) is 64x64 float like Model_II — verified against a real
+    # DeepLens run with lenstronomy's HST band config (simple_sim_2 -> 64x64).
+    assert all(im.shape == (64, 64) for im in imgs_iii)
+    assert np.issubdtype(imgs_i[0].dtype, np.integer)
+    assert np.issubdtype(imgs_ii[0].dtype, np.floating)
+    assert np.issubdtype(imgs_iii[0].dtype, np.floating)
+
+
+def test_model_iii_accepted_end_to_end_by_schema_and_mock():
+    cfg = SimConfig(
+        substructure_type=SubstructureType.VORTEX,
+        model_config_name=SimModelConfig.MODEL_III,
+        axion_mass=1e-23,
+        num_images=2,
+    )
+    assert cfg.model_config_name.value == "Model_III"
+    imgs = MockBackend(seed=0).generate(cfg)
+    assert len(imgs) == 2 and imgs[0].shape == (64, 64)
+
+
+def test_mock_is_deterministic():
+    a = MockBackend(seed=42).generate(_cfg(num_images=2))
+    b = MockBackend(seed=42).generate(_cfg(num_images=2))
+    for x, y in zip(a, b):
+        assert np.array_equal(x, y)
+
+
+def test_get_backend_auto_falls_back_to_mock():
+    assert deeplense_available() is False
+    assert get_backend("auto").name == "mock"
+    assert get_backend("mock").name == "mock"
+    with pytest.raises(RuntimeError, match="not importable"):
+        get_backend("deeplense")
+    with pytest.raises(ValueError):
+        get_backend("nonsense")
+
+
+def test_runner_writes_expected_layout(tmp_path: Path):
+    cfg = _cfg(
+        substructure_type=SubstructureType.VORTEX,
+        axion_mass=1e-23,
+        z_source=1.5,
+        model_config_name=SimModelConfig.MODEL_I,
+        num_images=4,
+    )
+    out = execute_simulation(cfg, backend=MockBackend(seed=1), output_root=tmp_path, make_preview=False)
+
+    assert out.num_generated == 4
+    assert out.image_shape == (150, 150)
+    assert out.backend == "mock"
+    assert out.filenames == [f"vortex_{i:04d}.npy" for i in range(4)]
+
+    run_dir = Path(out.output_dir)
+    assert run_dir.parent == tmp_path
+    for name in out.filenames:
+        assert (run_dir / name).exists()
+
+    meta = json.loads((run_dir / "metadata.json").read_text())
+    assert meta["run_id"] == out.run_id
+    assert meta["image_shape"] == [150, 150]
+    assert meta["config"]["substructure_type"] == "vortex"
+    assert meta["config"]["axion_mass"] == 1e-23
+
+
+def test_mock_center_jitter_is_independent_in_x_and_y():
+    # Regression (PR #8 review): cx/cy used the same normal deviate, so the
+    # ring centre only ever moved along the diagonal.
+    from dlens.tools import _sim_backends
+
+    captured = {}
+    original = np.hypot
+
+    def spy(dx, dy):
+        captured["cx"], captured["cy"] = float(dx[0, 0]), float(dy[0, 0])
+        return original(dx, dy)
+
+    _sim_backends.np.hypot, hypot = spy, _sim_backends.np.hypot
+    try:
+        MockBackend(seed=7).generate(_cfg(num_images=1))
+    finally:
+        _sim_backends.np.hypot = hypot
+    # (0,0) pixel offsets equal -cx and -cy; identical jitter would make them equal.
+    assert captured["cx"] != captured["cy"]
+
+
+def test_runner_run_id_collision_is_explicit(tmp_path: Path, monkeypatch):
+    from dlens.tools import _sim_runner
+
+    # Every candidate id collides with an existing directory: the runner must
+    # raise rather than silently reuse/overwrite the existing run's outputs.
+    class _FixedUUID:
+        hex = "deadbeefcafe"
+
+    (tmp_path / "deadbeef").mkdir()
+    sentinel = tmp_path / "deadbeef" / "existing.npy"
+    sentinel.write_bytes(b"do not overwrite")
+    monkeypatch.setattr(_sim_runner.uuid, "uuid4", lambda: _FixedUUID())
+
+    with pytest.raises(RuntimeError, match="unique run directory"):
+        execute_simulation(_cfg(), backend=MockBackend(seed=0), output_root=tmp_path,
+                           make_preview=False)
+    assert sentinel.read_bytes() == b"do not overwrite"
+
+    # With real UUIDs a collision simply retries onto a fresh id.
+    monkeypatch.undo()
+    out = execute_simulation(_cfg(), backend=MockBackend(seed=0), output_root=tmp_path,
+                             make_preview=False)
+    assert out.run_id != "deadbeef" and (tmp_path / out.run_id).is_dir()

@@ -1,0 +1,21 @@
+=== E4: shortlist retrained at 50 epochs (7200 train / 1800 val, seed 0) ===
+  cnn_deeper_s4          cnn            1.367M  @10ep 0.9033 -> @50ep 0.8956  (-0.0077)  gap +0.1044  2059.4s
+  resnet_deep_narrow     resnet         3.277M  @10ep 0.8778 -> @50ep 0.8633  (-0.0145)  gap +0.1363  916.7s
+  resnet_micro_4stage    resnet         1.228M  @10ep 0.8433 -> @50ep 0.8067  (-0.0366)  gap +0.1933  400.1s
+  equivariant_c4_mid     equivariant    0.287M  @10ep 0.7206 -> @50ep 0.8211  (+0.1005)  gap +0.0321  3430.1s
+
+  short-budget ranking : ['cnn_deeper_s4', 'resnet_deep_narrow', 'resnet_micro_4stage', 'equivariant_c4_mid']
+  full-budget ranking  : ['cnn_deeper_s4', 'resnet_deep_narrow', 'equivariant_c4_mid', 'resnet_micro_4stage']
+  Kendall tau          : +0.6667
+  winner preserved     : True
+  mean gain, conv      : -0.0196
+  mean gain, non-conv  : +0.1005
+
+artifacts -> docs/broader_search/e4_shortlist_50ep.json
+=== E4: shortlist retrained at 50 epochs (7200 train / 1800 val, seed 0) ===
+  hybrid_conv2_attn6     hybrid         4.838M  never trained -> @50ep 0.8456  gap +0.0588  1067.1s
+  vit_small_8b_d192      vit            3.623M  never trained -> @50ep 0.6433  gap +0.3567  709.3s
+  mlpmixer_small_8b_d256 mlpmixer       2.252M  never trained -> @50ep 0.6456  gap +0.3544  972.4s
+
+artifacts -> docs/broader_search/e4_rejected_50ep.json
+--- 50-EPOCH SWEEP DONE ---

@@ -18,7 +18,20 @@ dependencies = [
     "pydantic>=2.12.5",
     "pydantic-ai>=2.0",
     "requests>=2.32.5",
+    # Real CNN training/inference backends for the Train/Infer agents (MPS/CPU).
+    # A main dependency rather than an extra: the AI-Scientist pipeline
+    # (architecture search + tuning loop) cannot run without it, and `uv sync`
+    # does not install extras — so a fresh clone used to crash with
+    # ModuleNotFoundError: torch.
+    "torch>=2.2",
     "xmltodict>=1.0.2",
+]
+
+[project.optional-dependencies]
+# Retained so `pip install -e .[training]` keeps working; torch is a main
+# dependency now, so this extra adds nothing.
+training = [
+    "torch>=2.2",
 ]
 
 [build-system]

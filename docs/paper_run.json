@@ -1,0 +1,1039 @@
+{
+  "llm": "gpt-5.2",
+  "search": {
+    "proposed": [
+      {
+        "name": "resnet_tiny_s3",
+        "family": "resnet",
+        "input_shape": [
+          150,
+          150
+        ],
+        "channels": 1,
+        "num_classes": 3,
+        "depths": [
+          1,
+          1,
+          1
+        ],
+        "widths": [
+          16,
+          32,
+          64
+        ],
+        "physics_informed": false,
+        "rationale": "Very small 3-stage ResNet to serve as a low-capacity baseline that should resist overfitting on 1800 samples."
+      },
+      {
+        "name": "cnn_tiny_s3",
+        "family": "cnn",
+        "input_shape": [
+          150,
+          150
+        ],
+        "channels": 1,
+        "num_classes": 3,
+        "depths": [
+          1,
+          1,
+          1
+        ],
+        "widths": [
+          16,
+          32,
+          64
+        ],
+        "physics_informed": false,
+        "rationale": "Plain VGG-like net matching the tiny ResNet capacity to test whether residual connections are necessary for this dataset."
+      },
+      {
+        "name": "resnet_small_s4",
+        "family": "resnet",
+        "input_shape": [
+          150,
+          150
+        ],
+        "channels": 1,
+        "num_classes": 3,
+        "depths": [
+          2,
+          2,
+          2,
+          2
+        ],
+        "widths": [
+          32,
+          64,
+          128,
+          256
+        ],
+        "physics_informed": false,
+        "rationale": "Balanced 4-stage ResNet with moderate capacity to address underfitting while remaining reasonable for ~1800 training images."
+      },
+      {
+        "name": "cnn_small_deep_s4",
+        "family": "cnn",
+        "input_shape": [
+          150,
+          150
+        ],
+        "channels": 1,
+        "num_classes": 3,
+        "depths": [
+          2,
+          2,
+          3,
+          3
+        ],
+        "widths": [
+          32,
+          64,
+          128,
+          256
+        ],
+        "physics_informed": false,
+        "rationale": "Deeper plain CNN to test if additional non-residual depth helps capture lensing morphology without excessive widening."
+      },
+      {
+        "name": "resnet_wide_shallow_s3",
+        "family": "resnet",
+        "input_shape": [
+          150,
+          150
+        ],
+        "channels": 1,
+        "num_classes": 3,
+        "depths": [
+          1,
+          1,
+          1
+        ],
+        "widths": [
+          64,
+          128,
+          256
+        ],
+        "physics_informed": false,
+        "rationale": "Wide-but-shallow ResNet explores whether stronger early channel capacity helps discriminate subtle substructure signatures."
+      },
+      {
+        "name": "resnet_deep_narrow_s4",
+        "family": "resnet",
+        "input_shape": [
+          150,
+          150
+        ],
+        "channels": 1,
+        "num_classes": 3,
+        "depths": [
+          4,
+          4,
+          4,
+          4
+        ],
+        "widths": [
+          24,
+          48,
+          96,
+          192
+        ],
+        "physics_informed": false,
+        "rationale": "Deep-but-narrow ResNet probes optimization benefits of depth with controlled parameter count to mitigate overfitting risk."
+      },
+      {
+        "name": "cnn_medium_s4",
+        "family": "cnn",
+        "input_shape": [
+          150,
+          150
+        ],
+        "channels": 1,
+        "num_classes": 3,
+        "depths": [
+          2,
+          3,
+          3,
+          4
+        ],
+        "widths": [
+          32,
+          64,
+          128,
+          256
+        ],
+        "physics_informed": false,
+        "rationale": "Medium-capacity VGG-like model to bracket the regime where plain CNNs may underfit less yet still generalize."
+      },
+      {
+        "name": "resnet_mediumplus_s4",
+        "family": "resnet",
+        "input_shape": [
+          150,
+          150
+        ],
+        "channels": 1,
+        "num_classes": 3,
+        "depths": [
+          3,
+          4,
+          4,
+          3
+        ],
+        "widths": [
+          32,
+          64,
+          128,
+          256
+        ],
+        "physics_informed": false,
+        "rationale": "Stronger ResNet with extra mid-stage depth targets cases where both training and validation accuracy plateau (underfitting)."
+      },
+      {
+        "name": "cnn_wide_s4",
+        "family": "cnn",
+        "input_shape": [
+          150,
+          150
+        ],
+        "channels": 1,
+        "num_classes": 3,
+        "depths": [
+          1,
+          2,
+          2,
+          2
+        ],
+        "widths": [
+          64,
+          128,
+          256,
+          512
+        ],
+        "physics_informed": false,
+        "rationale": "Width-focused plain CNN tests high representational capacity with limited depth, which can overfit but may resolve underfitting if regularized."
+      },
+      {
+        "name": "resnet_large_s4",
+        "family": "resnet",
+        "input_shape": [
+          150,
+          150
+        ],
+        "channels": 1,
+        "num_classes": 3,
+        "depths": [
+          5,
+          6,
+          6,
+          5
+        ],
+        "widths": [
+          64,
+          128,
+          256,
+          512
+        ],
+        "physics_informed": false,
+        "rationale": "Large ResNet to deliberately explore the high-capacity end where underfitting disappears but overfitting may require strong augmentation/regularization."
+      }
+    ],
+    "dropped_unbuildable": [],
+    "judge_ranking": [
+      4,
+      2,
+      3,
+      6,
+      7,
+      5,
+      8,
+      0,
+      1,
+      9
+    ],
+    "judge_reasoning": "Dataset is small (1800 train) with 150x150 single-channel images; both under/overfitting observed, so aim for mid-sized capacity with good optimization. Likely sweet spot is ~1\u20135M params; <0.1M risks underfitting; >10M likely overfits without heavy regularization/augmentation. ResNet skip connections generally make deeper models easier to optimize at given capacity, so prefer moderate-depth ResNets over similarly sized plain CNNs, but extremely deep/huge models are too much. Top picks: [4] 1.23M ResNet wide-shallow should fit without severe overfit and train stably; [2] 2.8M ResNet small provides more representational power while still plausible for 1.8k samples; [3]/[6] 1.9\u20132.5M CNNs are similar capacity but may be a bit harder to optimize/generalize than ResNets. Midplus ResNet [7] at 4.7M may work but higher overfit risk. Wide CNN [8] similar params but very wide late layers could overfit. Deep-narrow ResNet [5] 3.34M but deeper (16 blocks) may be ok though could over-regularize/overfit depending; placed mid. Tiny models [0],[1] likely underfit. Very large ResNet [9] 31M is least promising due to strong overfitting risk on 1.8k samples.",
+    "rounds": [
+      [
+        {
+          "name": "resnet_wide_shallow_s3",
+          "params_m": 1.227,
+          "train_accuracy": 0.8922,
+          "val_accuracy": 0.5211111111111111,
+          "gap": 0.3711,
+          "macro_auc": 0.7117518518518519,
+          "train_seconds": 25.6
+        },
+        {
+          "name": "resnet_small_s4",
+          "params_m": 2.797,
+          "train_accuracy": 0.9628,
+          "val_accuracy": 0.7188888888888889,
+          "gap": 0.2439,
+          "macro_auc": 0.8773638888888889,
+          "train_seconds": 21.0
+        },
+        {
+          "name": "cnn_small_deep_s4",
+          "params_m": 1.911,
+          "train_accuracy": 0.7306,
+          "val_accuracy": 0.7022222222222222,
+          "gap": 0.0284,
+          "macro_auc": 0.8663273148148148,
+          "train_seconds": 65.5
+        },
+        {
+          "name": "cnn_medium_s4",
+          "params_m": 2.539,
+          "train_accuracy": 0.8394,
+          "val_accuracy": 0.7733333333333333,
+          "gap": 0.0661,
+          "macro_auc": 0.9153759259259259,
+          "train_seconds": 75.3
+        }
+      ],
+      [
+        {
+          "name": "cnn_medium_s4_wider",
+          "params_m": 2.638,
+          "train_accuracy": 0.7439,
+          "val_accuracy": 0.6183333333333333,
+          "gap": 0.1256,
+          "macro_auc": 0.837738425925926,
+          "train_seconds": 102.3
+        },
+        {
+          "name": "cnn_medium_s4_deeper",
+          "params_m": 1.22,
+          "train_accuracy": 0.5922,
+          "val_accuracy": 0.5133333333333333,
+          "gap": 0.0789,
+          "macro_auc": 0.7148347222222222,
+          "train_seconds": 68.4
+        },
+        {
+          "name": "cnn_medium_s4_slim",
+          "params_m": 0.661,
+          "train_accuracy": 0.7078,
+          "val_accuracy": 0.62,
+          "gap": 0.0878,
+          "macro_auc": 0.8234939814814815,
+          "train_seconds": 43.7
+        }
+      ]
+    ],
+    "winner": {
+      "name": "cnn_medium_s4",
+      "family": "cnn",
+      "input_shape": [
+        150,
+        150
+      ],
+      "channels": 1,
+      "num_classes": 3,
+      "depths": [
+        2,
+        3,
+        3,
+        4
+      ],
+      "widths": [
+        32,
+        64,
+        128,
+        256
+      ],
+      "physics_informed": false,
+      "rationale": "Medium-capacity VGG-like model to bracket the regime where plain CNNs may underfit less yet still generalize."
+    },
+    "winner_eval": {
+      "name": "cnn_medium_s4",
+      "params_m": 2.539,
+      "train_accuracy": 0.8394,
+      "val_accuracy": 0.7733333333333333,
+      "gap": 0.0661,
+      "macro_auc": 0.9153759259259259,
+      "train_seconds": 75.3
+    },
+    "timings": {
+      "generate_s": 14.8,
+      "judge_s": 7.7,
+      "round1_resnet_wide_shallow_s3_s": 25.6,
+      "round1_resnet_small_s4_s": 21.0,
+      "round1_cnn_small_deep_s4_s": 65.5,
+      "round1_cnn_medium_s4_s": 75.3,
+      "refine_generate_s": 17.0,
+      "round2_cnn_medium_s4_wider_s": 102.3,
+      "round2_cnn_medium_s4_deeper_s": 68.4,
+      "round2_cnn_medium_s4_slim_s": 43.7,
+      "search_total_s": 441.3
+    }
+  },
+  "arms": {
+    "search_winner": {
+      "final": {
+        "weights_path": "/Users/asalunke/Personal/GSoC/deeplense_data/model1/paper_runs/a96c525e/model.pt",
+        "val_accuracy": 0.86,
+        "val_macro_auc": 0.971675,
+        "val_per_class": {
+          "no_sub": {
+            "precision": 0.8914,
+            "recall": 0.9983,
+            "f1": 0.9418,
+            "support": 600.0
+          },
+          "cdm": {
+            "precision": 0.8886,
+            "recall": 0.6783,
+            "f1": 0.7694,
+            "support": 600.0
+          },
+          "axion": {
+            "precision": 0.809,
+            "recall": 0.9033,
+            "f1": 0.8535,
+            "support": 600.0
+          }
+        },
+        "val_confusion": [
+          [
+            599,
+            1,
+            0
+          ],
+          [
+            65,
+            407,
+            128
+          ],
+          [
+            8,
+            50,
+            542
+          ]
+        ],
+        "selected_iteration": 1,
+        "architecture": {
+          "name": "cnn_medium_s4",
+          "family": "cnn",
+          "input_shape": [
+            150,
+            150
+          ],
+          "channels": 1,
+          "num_classes": 3,
+          "depths": [
+            2,
+            3,
+            3,
+            4
+          ],
+          "widths": [
+            32,
+            64,
+            128,
+            256
+          ],
+          "physics_informed": false,
+          "rationale": "Medium-capacity VGG-like model to bracket the regime where plain CNNs may underfit less yet still generalize."
+        },
+        "training_config": {
+          "loss": "cross_entropy",
+          "optimizer": "adamw",
+          "learning_rate": 0.0003,
+          "batch_size": 32,
+          "epochs": 25,
+          "weight_decay": 0.0001,
+          "lr_scheduler": "cosine",
+          "dropout": 0.0,
+          "augment": true,
+          "early_stop_patience": 0
+        }
+      },
+      "test": {
+        "test_accuracy": 0.8705555555555555,
+        "test_macro_auc": 0.9699629629629629,
+        "per_class": {
+          "no_sub": {
+            "precision": 0.8942,
+            "recall": 1.0,
+            "f1": 0.9441,
+            "support": 600.0
+          },
+          "cdm": {
+            "precision": 0.8852,
+            "recall": 0.72,
+            "f1": 0.7941,
+            "support": 600.0
+          },
+          "axion": {
+            "precision": 0.8346,
+            "recall": 0.8917,
+            "f1": 0.8622,
+            "support": 600.0
+          }
+        },
+        "confusion": [
+          [
+            600,
+            0,
+            0
+          ],
+          [
+            62,
+            432,
+            106
+          ],
+          [
+            9,
+            56,
+            535
+          ]
+        ]
+      },
+      "trajectory": {
+        "hypothesis": "Tune 'cnn_medium_s4' to close any generalization gap (arm: search_winner).",
+        "current_iteration": 1,
+        "max_iterations": 4,
+        "runs": [
+          {
+            "iteration": 0,
+            "sim_config": null,
+            "sim_output": null,
+            "architecture": {
+              "name": "cnn_medium_s4",
+              "family": "cnn",
+              "input_shape": [
+                150,
+                150
+              ],
+              "channels": 1,
+              "num_classes": 3,
+              "depths": [
+                2,
+                3,
+                3,
+                4
+              ],
+              "widths": [
+                32,
+                64,
+                128,
+                256
+              ],
+              "physics_informed": false,
+              "rationale": "Medium-capacity VGG-like model to bracket the regime where plain CNNs may underfit less yet still generalize."
+            },
+            "training_config": {
+              "loss": "cross_entropy",
+              "optimizer": "adamw",
+              "learning_rate": 0.0003,
+              "batch_size": 32,
+              "epochs": 25,
+              "weight_decay": 0.0001,
+              "lr_scheduler": "cosine",
+              "dropout": 0.0,
+              "augment": false,
+              "early_stop_patience": 0
+            },
+            "train_result": {
+              "run_id": "0577afae",
+              "weights_path": "/Users/asalunke/Personal/GSoC/deeplense_data/model1/paper_runs/0577afae/model.pt",
+              "backend": "torch",
+              "num_classes": 3,
+              "metrics": {
+                "train_accuracy": 0.9994,
+                "final_loss": 0.0253
+              },
+              "epochs_run": 25
+            },
+            "infer_result": {
+              "run_id": "381f195b",
+              "num_samples": 1800,
+              "num_classes": 3,
+              "accuracy": 0.8233333333333334,
+              "backend": "torch"
+            },
+            "analysis_result": {
+              "accuracy": 0.8233333333333334,
+              "macro_auc": 0.9434013888888888,
+              "confusion_matrix": [
+                [
+                  550,
+                  49,
+                  1
+                ],
+                [
+                  37,
+                  497,
+                  66
+                ],
+                [
+                  1,
+                  164,
+                  435
+                ]
+              ],
+              "per_class": {
+                "no_sub": {
+                  "precision": 0.9354,
+                  "recall": 0.9167,
+                  "f1": 0.9259,
+                  "support": 600.0
+                },
+                "cdm": {
+                  "precision": 0.7,
+                  "recall": 0.8283,
+                  "f1": 0.7588,
+                  "support": 600.0
+                },
+                "axion": {
+                  "precision": 0.8665,
+                  "recall": 0.725,
+                  "f1": 0.7895,
+                  "support": 600.0
+                }
+              },
+              "summary": "accuracy=0.823, macro_auc=0.943; weakest recall on class 'axion'."
+            },
+            "planner_decision": {
+              "action": "train",
+              "rationale": "Strong overfitting: train_accuracy=0.9994 with val accuracy=0.8233 (gap ~0.176). No augmentation and dropout=0.0. Class confusions (axion\u2194cdm: 164 axion\u2192cdm, 66 cdm\u2192axion) suggest limited invariance/robustness. Smallest intervention: enable data augmentation to improve generalization without changing architecture; keep other settings same. (Optionally add early stopping later if needed.)",
+              "updated_params": {
+                "training": {
+                  "augment": true
+                }
+              }
+            }
+          },
+          {
+            "iteration": 1,
+            "sim_config": null,
+            "sim_output": null,
+            "architecture": {
+              "name": "cnn_medium_s4",
+              "family": "cnn",
+              "input_shape": [
+                150,
+                150
+              ],
+              "channels": 1,
+              "num_classes": 3,
+              "depths": [
+                2,
+                3,
+                3,
+                4
+              ],
+              "widths": [
+                32,
+                64,
+                128,
+                256
+              ],
+              "physics_informed": false,
+              "rationale": "Medium-capacity VGG-like model to bracket the regime where plain CNNs may underfit less yet still generalize."
+            },
+            "training_config": {
+              "loss": "cross_entropy",
+              "optimizer": "adamw",
+              "learning_rate": 0.0003,
+              "batch_size": 32,
+              "epochs": 25,
+              "weight_decay": 0.0001,
+              "lr_scheduler": "cosine",
+              "dropout": 0.0,
+              "augment": true,
+              "early_stop_patience": 0
+            },
+            "train_result": {
+              "run_id": "a96c525e",
+              "weights_path": "/Users/asalunke/Personal/GSoC/deeplense_data/model1/paper_runs/a96c525e/model.pt",
+              "backend": "torch",
+              "num_classes": 3,
+              "metrics": {
+                "train_accuracy": 0.8872,
+                "final_loss": 0.2917
+              },
+              "epochs_run": 25
+            },
+            "infer_result": {
+              "run_id": "64fbff07",
+              "num_samples": 1800,
+              "num_classes": 3,
+              "accuracy": 0.86,
+              "backend": "torch"
+            },
+            "analysis_result": {
+              "accuracy": 0.86,
+              "macro_auc": 0.971675,
+              "confusion_matrix": [
+                [
+                  599,
+                  1,
+                  0
+                ],
+                [
+                  65,
+                  407,
+                  128
+                ],
+                [
+                  8,
+                  50,
+                  542
+                ]
+              ],
+              "per_class": {
+                "no_sub": {
+                  "precision": 0.8914,
+                  "recall": 0.9983,
+                  "f1": 0.9418,
+                  "support": 600.0
+                },
+                "cdm": {
+                  "precision": 0.8886,
+                  "recall": 0.6783,
+                  "f1": 0.7694,
+                  "support": 600.0
+                },
+                "axion": {
+                  "precision": 0.809,
+                  "recall": 0.9033,
+                  "f1": 0.8535,
+                  "support": 600.0
+                }
+              },
+              "summary": "accuracy=0.860, macro_auc=0.972; weakest recall on class 'cdm'."
+            },
+            "planner_decision": {
+              "action": "report",
+              "rationale": "[loop guard] train/val gap 0.027 <= threshold 0.06 \u2014 gap closed.",
+              "updated_params": {}
+            }
+          }
+        ]
+      }
+    },
+    "resnet34_ref": {
+      "final": {
+        "weights_path": "/Users/asalunke/Personal/GSoC/deeplense_data/model1/paper_runs/cc6b9cbf/model.pt",
+        "val_accuracy": 0.8166666666666667,
+        "val_macro_auc": 0.9283296296296296,
+        "val_per_class": {
+          "no_sub": {
+            "precision": 0.949,
+            "recall": 0.9917,
+            "f1": 0.9698,
+            "support": 600.0
+          },
+          "cdm": {
+            "precision": 0.7897,
+            "recall": 0.6133,
+            "f1": 0.6904,
+            "support": 600.0
+          },
+          "axion": {
+            "precision": 0.7171,
+            "recall": 0.845,
+            "f1": 0.7758,
+            "support": 600.0
+          }
+        },
+        "val_confusion": [
+          [
+            595,
+            5,
+            0
+          ],
+          [
+            32,
+            368,
+            200
+          ],
+          [
+            0,
+            93,
+            507
+          ]
+        ],
+        "selected_iteration": 1,
+        "architecture": {
+          "name": "resnet34",
+          "family": "resnet",
+          "input_shape": [
+            150,
+            150
+          ],
+          "channels": 1,
+          "num_classes": 3,
+          "depths": null,
+          "widths": null,
+          "physics_informed": false,
+          "rationale": ""
+        },
+        "training_config": {
+          "loss": "cross_entropy",
+          "optimizer": "adamw",
+          "learning_rate": 0.0003,
+          "batch_size": 32,
+          "epochs": 25,
+          "weight_decay": 0.0001,
+          "lr_scheduler": "cosine",
+          "dropout": 0.0,
+          "augment": true,
+          "early_stop_patience": 0
+        }
+      },
+      "test": {
+        "test_accuracy": 0.81,
+        "test_macro_auc": 0.9292763888888889,
+        "per_class": {
+          "no_sub": {
+            "precision": 0.9384,
+            "recall": 0.99,
+            "f1": 0.9635,
+            "support": 600.0
+          },
+          "cdm": {
+            "precision": 0.7759,
+            "recall": 0.6117,
+            "f1": 0.6841,
+            "support": 600.0
+          },
+          "axion": {
+            "precision": 0.7161,
+            "recall": 0.8283,
+            "f1": 0.7682,
+            "support": 600.0
+          }
+        },
+        "confusion": [
+          [
+            594,
+            6,
+            0
+          ],
+          [
+            36,
+            367,
+            197
+          ],
+          [
+            3,
+            100,
+            497
+          ]
+        ]
+      },
+      "trajectory": {
+        "hypothesis": "Tune 'resnet34' to close any generalization gap (arm: resnet34_ref).",
+        "current_iteration": 1,
+        "max_iterations": 4,
+        "runs": [
+          {
+            "iteration": 0,
+            "sim_config": null,
+            "sim_output": null,
+            "architecture": {
+              "name": "resnet34",
+              "family": "resnet",
+              "input_shape": [
+                150,
+                150
+              ],
+              "channels": 1,
+              "num_classes": 3,
+              "depths": null,
+              "widths": null,
+              "physics_informed": false,
+              "rationale": ""
+            },
+            "training_config": {
+              "loss": "cross_entropy",
+              "optimizer": "adamw",
+              "learning_rate": 0.0003,
+              "batch_size": 32,
+              "epochs": 25,
+              "weight_decay": 0.0001,
+              "lr_scheduler": "cosine",
+              "dropout": 0.0,
+              "augment": false,
+              "early_stop_patience": 0
+            },
+            "train_result": {
+              "run_id": "6f07b719",
+              "weights_path": "/Users/asalunke/Personal/GSoC/deeplense_data/model1/paper_runs/6f07b719/model.pt",
+              "backend": "torch",
+              "num_classes": 3,
+              "metrics": {
+                "train_accuracy": 0.9839,
+                "final_loss": 0.0616
+              },
+              "epochs_run": 25
+            },
+            "infer_result": {
+              "run_id": "63cfce0f",
+              "num_samples": 1800,
+              "num_classes": 3,
+              "accuracy": 0.7516666666666667,
+              "backend": "torch"
+            },
+            "analysis_result": {
+              "accuracy": 0.7516666666666667,
+              "macro_auc": 0.8921652777777779,
+              "confusion_matrix": [
+                [
+                  543,
+                  57,
+                  0
+                ],
+                [
+                  72,
+                  376,
+                  152
+                ],
+                [
+                  5,
+                  161,
+                  434
+                ]
+              ],
+              "per_class": {
+                "no_sub": {
+                  "precision": 0.8758,
+                  "recall": 0.905,
+                  "f1": 0.8902,
+                  "support": 600.0
+                },
+                "cdm": {
+                  "precision": 0.633,
+                  "recall": 0.6267,
+                  "f1": 0.6298,
+                  "support": 600.0
+                },
+                "axion": {
+                  "precision": 0.7406,
+                  "recall": 0.7233,
+                  "f1": 0.7319,
+                  "support": 600.0
+                }
+              },
+              "summary": "accuracy=0.752, macro_auc=0.892; weakest recall on class 'cdm'."
+            },
+            "planner_decision": {
+              "action": "train",
+              "rationale": "Run 0 shows strong overfitting: train_accuracy=0.9839 vs val_accuracy=0.7517 (gap ~0.232) with no augmentation and dropout=0. Confusion indicates notable cdm\u2194axion confusion (cdm predicted as axion 152; axion predicted as cdm 161). The smallest intervention to improve generalization and class robustness is to enable data augmentation; this has not been tried yet. Keep other hyperparameters fixed to isolate effect; optionally add early stopping later if needed.",
+              "updated_params": {
+                "training": {
+                  "augment": true
+                }
+              }
+            }
+          },
+          {
+            "iteration": 1,
+            "sim_config": null,
+            "sim_output": null,
+            "architecture": {
+              "name": "resnet34",
+              "family": "resnet",
+              "input_shape": [
+                150,
+                150
+              ],
+              "channels": 1,
+              "num_classes": 3,
+              "depths": null,
+              "widths": null,
+              "physics_informed": false,
+              "rationale": ""
+            },
+            "training_config": {
+              "loss": "cross_entropy",
+              "optimizer": "adamw",
+              "learning_rate": 0.0003,
+              "batch_size": 32,
+              "epochs": 25,
+              "weight_decay": 0.0001,
+              "lr_scheduler": "cosine",
+              "dropout": 0.0,
+              "augment": true,
+              "early_stop_patience": 0
+            },
+            "train_result": {
+              "run_id": "cc6b9cbf",
+              "weights_path": "/Users/asalunke/Personal/GSoC/deeplense_data/model1/paper_runs/cc6b9cbf/model.pt",
+              "backend": "torch",
+              "num_classes": 3,
+              "metrics": {
+                "train_accuracy": 0.8233,
+                "final_loss": 0.4051
+              },
+              "epochs_run": 25
+            },
+            "infer_result": {
+              "run_id": "86a5b8c6",
+              "num_samples": 1800,
+              "num_classes": 3,
+              "accuracy": 0.8166666666666667,
+              "backend": "torch"
+            },
+            "analysis_result": {
+              "accuracy": 0.8166666666666667,
+              "macro_auc": 0.9283296296296296,
+              "confusion_matrix": [
+                [
+                  595,
+                  5,
+                  0
+                ],
+                [
+                  32,
+                  368,
+                  200
+                ],
+                [
+                  0,
+                  93,
+                  507
+                ]
+              ],
+              "per_class": {
+                "no_sub": {
+                  "precision": 0.949,
+                  "recall": 0.9917,
+                  "f1": 0.9698,
+                  "support": 600.0
+                },
+                "cdm": {
+                  "precision": 0.7897,
+                  "recall": 0.6133,
+                  "f1": 0.6904,
+                  "support": 600.0
+                },
+                "axion": {
+                  "precision": 0.7171,
+                  "recall": 0.845,
+                  "f1": 0.7758,
+                  "support": 600.0
+                }
+              },
+              "summary": "accuracy=0.817, macro_auc=0.928; weakest recall on class 'cdm'."
+            },
+            "planner_decision": {
+              "action": "report",
+              "rationale": "[loop guard] train/val gap 0.007 <= threshold 0.06 \u2014 gap closed.",
+              "updated_params": {}
+            }
+          }
+        ]
+      }
+    }
+  },
+  "timings_s": {
+    "phase_a_s": 441.5,
+    "phase_b_search_winner_s": 418.0,
+    "phase_b_resnet34_ref_s": 395.6,
+    "phase_c_s": 6.1,
+    "total_s": 1261.2
+  }
+}
