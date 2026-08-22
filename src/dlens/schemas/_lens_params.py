@@ -164,6 +164,34 @@ class CodeParamComparison(BaseModel):
     )
 
 
+class CodegenPassRecord(BaseModel):
+    """One outer codegen pass, kept whether L3 accepted or rejected it.
+
+    Rejected passes used to be discarded: only the final program and comparison
+    survived, so "L3 rejected this program" could not be substantiated after the
+    run. Every pass is now recorded.
+    """
+
+    pass_index: int = Field(description="1-based outer codegen pass number.")
+    code: Optional[str] = Field(
+        default=None, description="The generated program for this pass."
+    )
+    sandbox_passed: Optional[bool] = Field(
+        default=None, description="Did L1 (sandbox + structural validation) pass?"
+    )
+    sandbox_message: Optional[str] = Field(default=None, description="L1 validation message.")
+    image_shape: Optional[list[int]] = Field(default=None, description="L1 image shape, if any.")
+    codegen_attempts: Optional[int] = Field(
+        default=None, description="Inner sandbox retry attempts used within this pass."
+    )
+    comparison: Optional[CodeParamComparison] = Field(
+        default=None, description="L3 AST diff for this pass; None if L1 failed first."
+    )
+    accepted: bool = Field(
+        default=False, description="True if this pass satisfied both L1 and L3."
+    )
+
+
 class TwoStageResult(BaseModel):
     """Outcome of the two-stage path: extract -> validate -> codegen -> verify.
 
@@ -190,6 +218,11 @@ class TwoStageResult(BaseModel):
         default=0,
         description="Outer codegen passes (a fresh pass is triggered when the "
         "script diverges from the validated parameters).",
+    )
+    codegen_pass_log: list[CodegenPassRecord] = Field(
+        default_factory=list,
+        description="One record per outer codegen pass, INCLUDING passes L3 "
+        "rejected. Runs recorded before 2026-08-10 have an empty log.",
     )
     ok: bool = Field(
         description="True if parameters validated, generated code passed the sandbox, "

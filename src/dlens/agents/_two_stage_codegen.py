@@ -20,7 +20,12 @@ from typing import Optional
 from dlens.agents._param_extraction import ParamExtractionAgent
 from dlens.agents._simulation_codegen import SimulationCodegenAgent
 from dlens.schemas._codegen import SimSpec
-from dlens.schemas._lens_params import LensParameterSet, ParamValidationResult, TwoStageResult
+from dlens.schemas._lens_params import (
+    CodegenPassRecord,
+    LensParameterSet,
+    ParamValidationResult,
+    TwoStageResult,
+)
 from dlens.tools._code_param_check import compare_code_to_params
 from dlens.tools._param_validator import ValidationRanges, validate_parameters
 
@@ -89,12 +94,28 @@ class TwoStageSimulationAgent:
         notes = base_notes
         codegen_result = None
         comparison = None
+        # Every pass is recorded, accepted or not: a rejected program is the
+        # evidence that L3 does something L1 does not, so it must survive the run.
+        pass_log: list[CodegenPassRecord] = []
         for cpass in range(1, self.max_codegen_passes + 1):
             codegen_spec = SimSpec(description=spec.description, notes=notes)
             codegen_result = await self.codegen.generate_and_validate(codegen_spec)
+            record = CodegenPassRecord(
+                pass_index=cpass,
+                code=codegen_result.code,
+                sandbox_passed=codegen_result.validation.passed,
+                sandbox_message=codegen_result.validation.message,
+                image_shape=(list(codegen_result.validation.image_shape)
+                             if codegen_result.validation.image_shape else None),
+                codegen_attempts=codegen_result.attempts,
+            )
             if not codegen_result.ok:
+                pass_log.append(record)
                 break
             comparison = compare_code_to_params(codegen_result.code, params)
+            record.comparison = comparison
+            record.accepted = comparison.passed
+            pass_log.append(record)
             if comparison.passed:
                 break
             notes = (
@@ -108,6 +129,6 @@ class TwoStageSimulationAgent:
             reasoning=reasoning, spec=spec, params=params,
             param_validation=validation, extraction_attempts=attempt,
             codegen=codegen_result, code_param_comparison=comparison,
-            codegen_passes=cpass,
+            codegen_passes=cpass, codegen_pass_log=pass_log,
             ok=bool(codegen_result.ok and comparison is not None and comparison.passed),
         )
