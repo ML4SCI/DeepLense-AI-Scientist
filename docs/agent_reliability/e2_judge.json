@@ -1,0 +1,554 @@
+{
+  "model": "gpt-5.2",
+  "trials": 20,
+  "source": "/Users/asalunke/Personal/GSoC/deeplense_artifacts/pilot/experiment_b/expB_run0_seed0/metrics.json",
+  "task": "Classify 150x150 grayscale strong-lensing images into 3 dark-matter substructure classes (no_sub, cdm, axion). 7200 training images, 1800 validation.",
+  "candidates": [
+    {
+      "index": 0,
+      "name": "resnet_s2_tiny_d2-2_w16-32",
+      "params_m": 0.043
+    },
+    {
+      "index": 1,
+      "name": "cnn_s3_small_d1-2-2_w16-32-64",
+      "params_m": 0.07
+    },
+    {
+      "index": 2,
+      "name": "resnet_s3_narrow_d2-2-2_w24-48-96",
+      "params_m": 0.393
+    },
+    {
+      "index": 3,
+      "name": "cnn_s4_mid_d2-2-3-3_w32-64-128-256",
+      "params_m": 1.911
+    },
+    {
+      "index": 4,
+      "name": "resnet_s4_balanced_d2-2-3-3_w32-64-128-256",
+      "params_m": 4.273
+    },
+    {
+      "index": 5,
+      "name": "resnet_s3_deeper_d4-4-4_w32-64-128",
+      "params_m": 1.472
+    },
+    {
+      "index": 6,
+      "name": "cnn_s3_wide_d2-3-3_w64-128-256",
+      "params_m": 1.884
+    },
+    {
+      "index": 7,
+      "name": "resnet_s2_wide_d3-3_w64-128",
+      "params_m": 1.047
+    },
+    {
+      "index": 8,
+      "name": "resnet_s4_large_d3-4-6-3_w64-128-256-512",
+      "params_m": 21.28
+    },
+    {
+      "index": 9,
+      "name": "cnn_s2_minimal_d2-2_w16-32",
+      "params_m": 0.017
+    }
+  ],
+  "recorded_production_ranking": [
+    5,
+    7,
+    2,
+    6,
+    3,
+    4,
+    1,
+    0,
+    9,
+    8
+  ],
+  "runs": [
+    {
+      "trial": 1,
+      "ranking": [
+        2,
+        5,
+        7,
+        6,
+        3,
+        4,
+        1,
+        0,
+        9,
+        8
+      ],
+      "top_k": [
+        2,
+        5,
+        7,
+        6
+      ],
+      "reasoning": "Dataset: 7200 train, 3 classes, 150x150 grayscale; task likely needs mid-level spatial features but not extreme capacity. Prefer architectures with enough depth/width for invariances and multi-scale structure while avoiding heavy overparameterization (risk overfit) given dataset size.\n\nTop picks are mid-sized ResNets/CNNs ~0.4\u20131.9M params: they balance capacity and optimization stability. Residual connections help train deeper models and generalize better at similar parameter counts.\n\n(1) [2] ResNet s3 narrow (0.393M): good depth (6 blocks total) and progressive widths; likely sufficient capacity without overfitting.\n(2) [5] ResNet s3 deeper (1.472M): more depth for complex lensing patterns; still moderate params; residuals mitigate optimization issues.\n(3) [7] ResNet s2 wide (1.047M): fewer stages but strong early capacity; good if features are relatively low/mid-level.\n\nNext tier: ~1.9M CNNs [6]/[3] offer capacity but lack residuals; may need more regularization/tuning to match ResNet generalization. Very small models [0]/[1]/[9] may underfit. Very large [8] (21M) and [4] (4.27M) are likely too big for 7.2k images unless strong augmentation/regularization is used; higher overfitting risk pre-training.",
+      "seconds": 7.1
+    },
+    {
+      "trial": 2,
+      "ranking": [
+        5,
+        2,
+        7,
+        6,
+        3,
+        4,
+        1,
+        0,
+        9,
+        8
+      ],
+      "top_k": [
+        5,
+        2,
+        7,
+        6
+      ],
+      "reasoning": "Task: 150x150 grayscale, 3-way classification; 7200 train is moderate. Strong-lensing morphology/substructure cues are subtle and benefit from multi-scale features; too-small models risk underfitting, too-large (21M) likely overfit without heavy augmentation/regularization.\n\nTop picks balance capacity and optimization: mid-size ResNets (~0.4\u20131.5M) should generalize well, with residual connections enabling depth without training instability. CNNs of similar size can work but may need more careful tuning; very wide CNNs/large ResNets increase overfitting risk.\n\nOrdering rationale:\n- [5] (ResNet, deeper, 1.47M): good depth/width for hierarchical features; residuals; capacity appropriate for 7.2k images.\n- [2] (ResNet, 0.39M): smaller but still multi-stage; likely strong bias/variance tradeoff.\n- [7] (ResNet, 1.05M): fewer stages but wide; good capacity; slightly less multi-scale than s3.\n- [6] (CNN, 1.88M): strong capacity; but no residuals; higher overfit/training sensitivity than comparable ResNet.\n- [3] (CNN, 1.91M): deeper multi-stage; similar to [6] but more stages; still overfit risk.\n- [4] (ResNet, 4.27M): probably too large for 7.2k unless strong augmentation; could overfit.\n- [1] (CNN, 0.07M): small; may underfit subtle differences.\n- [0] (ResNet, 0.043M): very small; residuals help but likely under-capacity.\n- [9] (CNN, 0.017M): minimal; most likely to underfit.\n- [8] (ResNet, 21.28M): far too large; highest overfitting risk; inefficient for dataset size.",
+      "seconds": 7.7
+    },
+    {
+      "trial": 3,
+      "ranking": [
+        5,
+        7,
+        2,
+        6,
+        3,
+        4,
+        1,
+        0,
+        9,
+        8
+      ],
+      "top_k": [
+        5,
+        7,
+        2,
+        6
+      ],
+      "reasoning": "Task: 150x150 grayscale, 3-way classification, 7.2k train / 1.8k val. This is a mid-sized dataset; best generalization likely from moderate-capacity models with good inductive bias and trainability. Very tiny models (<0.1M) risk underfitting fine substructure cues; very large (21M) likely overfits/needs stronger regularization and more data.\n\nTop picks balance capacity (\u22480.4\u20131.5M params) and depth/width to capture multi-scale lensing features. Residual connections help optimization at moderate depth.\n- [5] ResNet with 12 blocks total and 1.47M params: good depth for hierarchical features without excessive width; residuals should train stably and generalize well at this data scale.\n- [7] Shallower but wider ResNet (1.05M): strong capacity, fewer stages reduces overfitting risk vs deeper/wider nets; likely solid baseline.\n- [2] Smaller ResNet (0.39M): good if task signal is subtle but dataset limits demand restraint; lower overfit risk than ~2\u20134M options.\n\nNext tier: ~1.8\u20131.9M CNNs ([6],[3]) can work but without residuals may need more careful optimization; still reasonable capacity. [4] (4.27M) is plausible but borderline for 7.2k\u2014higher overfit risk. Tiny models [1],[0],[9] likely underfit; [8] is far too large for expected generalization given data size.",
+      "seconds": 7.0
+    },
+    {
+      "trial": 4,
+      "ranking": [
+        5,
+        7,
+        2,
+        6,
+        3,
+        4,
+        1,
+        0,
+        9,
+        8
+      ],
+      "top_k": [
+        5,
+        7,
+        2,
+        6
+      ],
+      "reasoning": "Task: 150x150 grayscale, 3-way classification, 7.2k train (moderate). Need enough capacity for subtle lensing substructure cues, but too-large models (tens of M params) likely overfit unless heavy augmentation/regularization. Residual connections help optimization/generalization at moderate depth.\n\nTop picks: \n- [5] ResNet, deeper (4-4-4) with moderate width and 1.47M params: good depth/skip connections for hierarchical features while keeping capacity reasonable for 7.2k samples.\n- [7] ResNet s2 wide (3-3) 1.05M params: slightly shallower but wide enough; likely strong bias-variance tradeoff.\n- [2] ResNet s3 narrow 0.393M params: smaller, should generalize well if signal-to-noise is limited; may underfit less than tiny models.\n\nMiddle: \n- [6] CNN wide 1.88M and [3] CNN mid 1.91M: comparable capacity but no residuals; still viable, though optimization/generalization may be a bit worse than similarly sized ResNets.\n- [4] ResNet balanced 4.27M: potentially strong but higher overfit risk at 7.2k unless strong regularization.\n\nLower: very small models [1],[0],[9] may underfit subtle morphology; among them, [1] has a bit more depth/width than [0] and much more than [9].\n\nWorst: \n- [8] 21.28M ResNet: severe over-parameterization for dataset size; likely to overfit and be unstable without extensive regularization/pretraining.",
+      "seconds": 8.0
+    },
+    {
+      "trial": 5,
+      "ranking": [
+        5,
+        2,
+        7,
+        6,
+        3,
+        4,
+        1,
+        0,
+        9,
+        8
+      ],
+      "top_k": [
+        5,
+        2,
+        7,
+        6
+      ],
+      "reasoning": "Task: 150x150 grayscale, 3 classes, 7200 train / 1800 val. This is a moderate-sized dataset; models in ~0.3M\u20132M params typically balance capacity and overfitting risk. Too tiny (\u22640.07M) may underfit subtle lensing/substructure signals; too large (21M) likely overfits and is data-inefficient unless heavy augmentation/regularization.\n\nTop picks favor (a) enough depth/receptive field for global lens morphology, (b) residual connections when depth increases, (c) parameter count commensurate with 7.2k images.\n\n1) [5] resnet_s3_deeper (1.47M): good depth (4-4-4) with ResNet stability; strong feature hierarchy without excessive params\u2014best bias/variance tradeoff.\n2) [2] resnet_s3_narrow (0.393M): moderate capacity, residuals, and 3 stages; likely sufficient for 3-way classification with less overfit risk.\n3) [7] resnet_s2_wide (1.05M): fewer stages but wide; good capacity, residuals; slightly less multi-scale richness than 3\u20134 stage nets.\n\nNext tier: larger CNNs without residuals (3,6) have comparable params but may generalize slightly worse due to optimization/regularization sensitivity; [4] has strong multi-scale but 4.27M may be a bit large for 7.2k unless regularized. Small models [0,1,9] risk underfitting. [8] is likely too large for dataset size.",
+      "seconds": 7.0
+    },
+    {
+      "trial": 6,
+      "ranking": [
+        2,
+        5,
+        7,
+        6,
+        3,
+        4,
+        1,
+        0,
+        9,
+        8
+      ],
+      "top_k": [
+        2,
+        5,
+        7,
+        6
+      ],
+      "reasoning": "Task: 150x150 grayscale, 3-way classification, 7.2k train / 1.8k val. Expect moderate sample size; models in ~0.3\u20132M params typically balance representation and overfitting risk. Very tiny (<0.1M) may underfit subtle substructure cues; very large (21M) likely overfit unless heavy augmentation/regularization. Residual connections help optimization/generalization at moderate depth.\n\nTop picks: (2) ResNet with 0.39M params and 3 stages offers enough capacity while staying small; good depth/width progression for hierarchical features. (5) 1.47M ResNet deeper (4-4-4) should capture subtle patterns; still not huge for 7.2k images and benefits from residual training stability. (7) 1.05M 2-stage wide ResNet trades depth for width; strong mid-level capacity and likely robust. \n\nMiddle: (6) and (3) CNNs around ~1.9M params can work but lack residuals, increasing optimization difficulty and overfitting risk vs similarly sized ResNets; among them, (6) has fewer stages and may generalize slightly better than (3). (4) ResNet at 4.27M is potentially too large for 7.2k unless strong regularization; still ranks above the huge 21M model.\n\nBottom: (1) small CNN (0.07M) and (0)/(9) tiny models likely underfit; (9) especially minimal. (8) 21M ResNet is over-capacity for this dataset size and likely to generalize worst without extensive augmentation/pretraining (not assumed).",
+      "seconds": 6.9
+    },
+    {
+      "trial": 7,
+      "ranking": [
+        2,
+        5,
+        7,
+        6,
+        3,
+        4,
+        1,
+        0,
+        9,
+        8
+      ],
+      "top_k": [
+        2,
+        5,
+        7,
+        6
+      ],
+      "reasoning": "Task: 150x150 grayscale, 3 classes, 7.2k train. Need enough capacity for fine-grained lensing/substructure cues but avoid heavy overfitting; residual connections help optimization/generalization at moderate depth. Best bets are mid-size ResNets (~0.4\u20131.5M params) that can model multi-scale features without being too large. \nTop: [2] resnet_s3_narrow (0.393M) offers good depth/width progression (24-48-96) with residuals; strong bias toward stable training and sufficient capacity for 7.2k images. [5] resnet_s3_deeper (1.47M) adds depth (4-4-4) at moderate widths; likely better feature hierarchy, still within reasonable parameter budget. [7] resnet_s2_wide (1.05M) is shallower but wide; good capacity and residuals though less multiscale depth.\nNext tier: medium CNNs [6]/[3] (~1.9M) can work but lack residuals, higher overfitting/optimization risk; [1] small CNN (0.07M) may underfit; tiny models [0]/[9] likely underfit. Very large ResNet [8] (21M) is likely over-parameterized for 7.2k and would need strong regularization/augmentation; higher overfitting risk than mid-size options. ResNet [4] (4.27M) also relatively large vs dataset, though less extreme than [8].",
+      "seconds": 6.8
+    },
+    {
+      "trial": 8,
+      "ranking": [
+        5,
+        2,
+        7,
+        6,
+        3,
+        4,
+        1,
+        0,
+        9,
+        8
+      ],
+      "top_k": [
+        5,
+        2,
+        7,
+        6
+      ],
+      "reasoning": "Task: 150x150 grayscale, 3-way classification, 7.2k train / 1.8k val. This is moderate data; models in ~0.3\u20132M params typically balance representation with overfitting risk. Too tiny (<0.1M) may underfit complex lensing features; too large (21M) likely overfits and is harder to regularize without much more data/augmentation.\n\nTop picks favor: (i) enough depth/width for multi-scale morphology, (ii) residual connections when depth is nontrivial (optimization/generalization stability), (iii) parameter count commensurate with dataset size.\n\n- [5] ResNet, 1.47M, deeper (4-4-4) with moderate widths: strong capacity with good optimization via skips; likely best bias/variance tradeoff.\n- [2] ResNet, 0.393M, narrow but 3 stages: efficient capacity; should generalize well with limited overfitting; may slightly underfit vs [5] but safer.\n- [7] ResNet, 1.05M, only 2 stages but wide: good low/mid-level feature richness; fewer downsampling stages may limit multi-scale abstraction versus 3\u20134 stage nets.\n\nMid-tier:\n- [3]/[6] CNNs around ~1.9M: adequate capacity but no residuals; potentially harder to train/generalize at this depth; still competitive.\n- [4] ResNet 4.27M: strong but somewhat large for 7.2k images; could overfit unless heavy augmentation/regularization.\n\nLower-tier:\n- [1], [0], [9] very small (<=0.07M): likely underfit for subtle substructure cues; [1] best among them due to 3 stages.\n- [8] 21.28M: disproportionate to dataset; high overfitting risk; generalization likely worst absent transfer learning/very strong augmentation.",
+      "seconds": 7.9
+    },
+    {
+      "trial": 9,
+      "ranking": [
+        5,
+        7,
+        2,
+        6,
+        3,
+        4,
+        1,
+        0,
+        9,
+        8
+      ],
+      "top_k": [
+        5,
+        7,
+        2,
+        6
+      ],
+      "reasoning": "Task: 150x150 grayscale, 3-class; 7.2k train is moderate. Strong-lensing morphology likely benefits from reasonably deep hierarchical features; residual connections help optimize deeper nets without requiring extreme parameter counts. Generalization risk increases with very large models (21M) given dataset size.\n\nTop picks balance capacity and trainability: \n- [5] ResNet s3 deeper (1.47M) offers good depth (4-4-4) with moderate width, likely to capture subtle substructure cues while staying within a sane capacity for 7.2k images.\n- [7] ResNet s2 wide (1.05M) is simpler but sufficiently wide; residuals should train well and generalize better than similarly sized plain CNNs.\n- [2] ResNet s3 narrow (0.393M) is a strong \u201csmall-but-not-tiny\u201d option: enough channels and stages for multi-scale features, low overfit risk.\n\nMiddle tier: CNNs around ~1.9M ([6],[3]) can work but lack residuals, making optimization/regularization more sensitive; still plausible given dataset size. [4] ResNet at 4.27M may start to overfit but could win with strong augmentation/regularization.\n\nLower tier: very small models ([1],[0],[9]) may underfit the subtle lensing differences; among them, [1] has more stages and capacity than [0]/[9].\n\nWorst: [8] 21.28M is disproportionately large for 7.2k images; likely overfits and is harder to tune, unless heavy regularization/pretraining (not assumed) is used.",
+      "seconds": 7.3
+    },
+    {
+      "trial": 10,
+      "ranking": [
+        5,
+        2,
+        6,
+        3,
+        7,
+        4,
+        1,
+        0,
+        9,
+        8
+      ],
+      "top_k": [
+        5,
+        2,
+        6,
+        3
+      ],
+      "reasoning": "Task: 150x150 grayscale, 3-way classification, 7.2k train. Need enough capacity for subtle lensing substructure patterns but not so large to overfit; residual connections help optimize deeper nets at moderate parameter counts. Very tiny models (0.017\u20130.07M) likely underfit; extremely large (21M) likely overfit/need stronger regularization given dataset size.\n\nTop choices balance depth/width and params (~0.4\u20131.9M). [5] (ResNet, deeper 4-4-4, 1.47M) offers good representational power with stable training via skips; likely best bias/variance tradeoff. [2] (ResNet, 0.393M) is smaller but still reasonably deep; good if task is not too complex and for robustness. [6]/[3] (CNNs ~1.9M) have adequate capacity but lack residuals; can generalize well with proper regularization, though optimization may be less forgiving.\n\nMid-tier: [7] (ResNet 1.05M but only 2 stages) may have weaker multi-scale hierarchy for 150x150 than 3\u20134 stage designs. [4] (ResNet 4.27M) has strong multi-scale capacity but higher overfitting risk on 7.2k unless heavy augmentation/regularization.\n\nLowest: [1],[0],[9] likely underfit; [8] (21.28M) over-parameterized for dataset size and may generalize worse without transfer learning/very strong regularization.",
+      "seconds": 6.6
+    },
+    {
+      "trial": 11,
+      "ranking": [
+        2,
+        5,
+        7,
+        3,
+        6,
+        4,
+        1,
+        0,
+        9,
+        8
+      ],
+      "top_k": [
+        2,
+        5,
+        7,
+        3
+      ],
+      "reasoning": "Task: 150x150 grayscale, 3 classes, 7.2k train / 1.8k val (moderate data). Need enough capacity for subtle lensing substructure cues, but avoid severe over-parameterization that will overfit. Residual connections help optimization/generalization at moderate depth; plain CNNs of similar size can work but may need careful regularization.\n\nTop picks balance capacity (~0.4\u20131.9M params) with depth and inductive bias.\n- [2] ResNet s3 narrow (0.393M): likely sweet spot\u2014enough channels and 3 stages for multi-scale features with residuals; low overfitting risk given dataset size.\n- [5] ResNet s3 deeper (1.47M): more depth for complex morphology while still reasonable params; residuals stabilize training.\n- [7] ResNet s2 wide (1.05M): fewer stages but wide early features; good capacity, less depth than [5] but still balanced.\n\nNext tier: larger plain CNNs with ~1.9M params ([3],[6]) can perform well but lack residuals; slightly higher overfitting/optimization risk versus similarly sized ResNets.\n\nToo small models ([0],[1],[9]) may underfit subtle distinctions; among them, [1] is the best compromise. Very large model [8] (21M) is likely to overfit on 7.2k images unless heavy augmentation/regularization/transfer learning is used; thus ranked last.",
+      "seconds": 5.9
+    },
+    {
+      "trial": 12,
+      "ranking": [
+        2,
+        5,
+        7,
+        4,
+        6,
+        3,
+        1,
+        0,
+        9,
+        8
+      ],
+      "top_k": [
+        2,
+        5,
+        7,
+        4
+      ],
+      "reasoning": "Task: 150x150 grayscale, 3 classes, 7200 train / 1800 val (moderate-sized). Need enough capacity to capture subtle lensing/substructure cues, but avoid extreme overparameterization that may overfit unless heavily regularized/augmented. Residual connections generally help optimization/generalization at moderate depth; plain CNNs of similar size can work but may need careful tuning.\n\nTop picks balance capacity (\u22480.4M\u20131.5M params) and depth with residuals: [2], [5], [7]. Very small models ([0],[1],[9]) risk underfitting; very large ([8]) high overfit risk and unnecessary for dataset size; mid-large plain CNNs ([3],[6]) have capacity but lack residuals at similar depth/width, so slightly less promising; [4] is strong but maybe larger than needed (4.3M) for 7.2k images.\n\nEdge notes: If strong data augmentation/regularization and transfer-like pretraining were available, [4] or even [8] could become more competitive; absent that, prefer moderate-size ResNets.",
+      "seconds": 5.6
+    },
+    {
+      "trial": 13,
+      "ranking": [
+        5,
+        2,
+        7,
+        4,
+        6,
+        3,
+        1,
+        0,
+        9,
+        8
+      ],
+      "top_k": [
+        5,
+        2,
+        7,
+        4
+      ],
+      "reasoning": "Task: 150x150 grayscale, 3 classes, 7.2k train/1.8k val. Likely moderate complexity with fine local features (substructure) plus global lens morphology. Need enough capacity and receptive field; avoid extreme overparameterization given dataset size.\n\nTop choices balance depth/capacity with 7.2k samples and benefit from residual optimization stability. ResNet mid-size models (~0.4M\u20131.5M params) are good bets. Very tiny models (<=0.07M) risk underfitting; very large (21M) risks overfitting and needs stronger regularization/augmentation.\n\nRank rationale:\n- [5] ResNet s3 deeper (1.47M): good depth (4-4-4) for hierarchical features, moderate params for 7.2k; residuals aid training/generalization.\n- [2] ResNet s3 narrow (0.393M): smaller but still reasonably deep; strong generalization bias, less overfit risk.\n- [7] ResNet s2 wide (1.05M): fewer stages but wide enough; should capture features, though less hierarchical than s3/s4.\n- [4] ResNet s4 balanced (4.27M): higher capacity and more stages; could work well but increased overfit risk on 7.2k.\n- [6] CNN s3 wide (1.88M): adequate capacity; lacks residual connections so optimization/regularization burden higher; still plausible.\n- [3] CNN s4 mid (1.91M): similar params to [6] but deeper/staged; without residuals may overfit/optimize harder.\n- [1] CNN s3 small (0.07M): might underfit subtle substructure signals; but could generalize if task is easy.\n- [0] ResNet s2 tiny (0.043M): residual helps, but very low capacity for 150x150 may underfit.\n- [9] CNN s2 minimal (0.017M): most likely underfit.\n- [8] ResNet s4 large (21.28M): excessive capacity vs 7.2k; overfitting risk dominates absent very strong augmentation/pretraining.",
+      "seconds": 9.7
+    },
+    {
+      "trial": 14,
+      "ranking": [
+        2,
+        7,
+        5,
+        6,
+        3,
+        4,
+        1,
+        0,
+        9,
+        8
+      ],
+      "top_k": [
+        2,
+        7,
+        5,
+        6
+      ],
+      "reasoning": "Task: 150x150 grayscale, 3 classes, 7.2k train / 1.8k val. This is a moderate-sized dataset; architectures need enough capacity for subtle substructure cues but not so large as to overfit. Residual connections help optimization/generalization as depth increases; plain CNNs may need to stay smaller to generalize similarly.\n\nTop picks balance depth/width and parameter count (~0.4\u20131.5M) while being deep enough to capture multi-scale lensing features.\n- [2] ResNet with 3 stages and moderate width (0.393M) is likely in the sweet spot: sufficient representational power with low overfitting risk; residuals aid stable training.\n- [7] ResNet 2-stage wider (1.047M) offers strong mid-level capacity without extreme depth; good for 150x150 where early spatial processing matters; still not huge.\n- [5] Deeper 3-stage ResNet (1.472M) increases effective depth for subtle morphology; residuals mitigate optimization issues; slight overfit risk but still reasonable at 7.2k.\n\nMid-tier: [6] and [3] (\u22481.9M) are likely workable but, as plain CNNs, may generalize a bit worse than similarly-sized ResNets; they also carry higher overfit risk. [4] (4.27M) may start to over-parameterize for 7.2k unless strong augmentation/regularization; still potentially strong due to ResNet.\n\nLower tier: very small models [1],[0],[9] may underfit the subtle class differences; among them, [1] has the best capacity. [8] (21M) is very likely to overfit given dataset size and 3 classes unless transfer learning/very strong regularization is assumed (not given).",
+      "seconds": 11.3
+    },
+    {
+      "trial": 15,
+      "ranking": [
+        2,
+        5,
+        7,
+        6,
+        3,
+        4,
+        1,
+        0,
+        9,
+        8
+      ],
+      "top_k": [
+        2,
+        5,
+        7,
+        6
+      ],
+      "reasoning": "Task: 150x150 grayscale, 3 classes, 7.2k train. Need enough capacity for subtle lensing features but avoid severe overfitting. Mid-sized models (~0.3\u20132M params) with reasonable depth and modern optimization (skip connections help) are most promising. \nTop picks: [2] resnet_s3_narrow (0.393M) balances capacity and depth across 3 stages; likely sufficient to capture multi-scale structures with good generalization on 7.2k images. [5] resnet_s3_deeper (1.47M) adds depth (4-4-4) for richer features while staying under ~1.5M params; residuals stabilize training and may generalize well if regularized. [7] resnet_s2_wide (1.05M) is simpler (2 stages) but wide; good capacity with fewer downsampling steps\u2014may work well on 150x150 if receptive field is adequate.\nNext tier: [6] cnn_s3_wide (1.88M) and [3] cnn_s4_mid (1.91M) have similar param counts; lack residuals may make optimization/regularization a bit harder, but still plausible. [4] resnet_s4_balanced (4.27M) is likely over-capacity for 7.2k unless heavy augmentation/regularization; could overfit though residuals help.\nLow-capacity tier: [1], [0], [9] may underfit subtle class cues; among them [1] has the best chance due to 3 stages and 64-ch top width. \nWorst: [8] resnet_s4_large (21.28M) is very likely to overfit given dataset size and 3-way classification unless pretraining (not assumed).",
+      "seconds": 7.3
+    },
+    {
+      "trial": 16,
+      "ranking": [
+        5,
+        2,
+        7,
+        6,
+        3,
+        4,
+        1,
+        0,
+        9,
+        8
+      ],
+      "top_k": [
+        5,
+        2,
+        7,
+        6
+      ],
+      "reasoning": "Task: 150x150 grayscale, 3 classes, 7.2k train / 1.8k val. This is moderate data; models in ~0.3\u20132M params typically balance representation for subtle lensing substructure features without severe overfitting. Very tiny (<0.1M) risks underfitting; very large (21M) likely overfits unless heavy augmentation/regularization.\n\nTop pick (5) ResNet 1.47M with deeper stages (4-4-4) and moderate widths (32-64-128): good depth for multi-scale features and residual connections to optimize, while parameter count matches dataset scale.\nNext (2) ResNet 0.393M: smaller but still reasonably expressive with three stages; good generalization bias if task isn\u2019t extremely complex.\nThen (7) ResNet 1.05M: fewer stages (2) but wide; decent capacity though coarser multi-scale hierarchy than s3/s4.\nMid (6) CNN 1.88M: similar params to (5) but lacks residuals, more prone to optimization/overfit; still likely strong if tuned.\nThen (3) CNN 1.91M: deeper hierarchy (4 stages) but plain CNN at this size may overfit/need careful regularization; still preferable to extremes.\nThen (4) ResNet 4.27M: probably too much capacity for 7.2k images; could win with strong augmentation but higher overfit risk.\nThen small models: (1) CNN 0.07M better than ultra-tiny due to 3-stage hierarchy; (0) ResNet 0.043M may underfit; (9) CNN 0.017M most likely underfit.\nLast (8) ResNet 21.28M: far too large relative to data; highest overfitting risk despite residuals.",
+      "seconds": 8.7
+    },
+    {
+      "trial": 17,
+      "ranking": [
+        5,
+        2,
+        7,
+        6,
+        3,
+        4,
+        1,
+        0,
+        9,
+        8
+      ],
+      "top_k": [
+        5,
+        2,
+        7,
+        6
+      ],
+      "reasoning": "Task: 150x150 grayscale, 3-way classification, 7.2k train (moderate). Need sufficient capacity for subtle lensing substructure cues, but avoid overfitting; residual connections help optimize deeper nets and typically improve generalization at similar parameter counts.\n\nTop choices balance depth/width and params ~0.4\u20131.5M: [5] (ResNet, deeper 4-4-4, 1.47M) offers good hierarchical feature depth with manageable capacity; [2] (ResNet, 0.393M) is a strong compact baseline likely to generalize well on 7.2k; [7] (ResNet, 1.05M) is shallower but wide enough and benefits from residuals.\n\nMid-tier: [6] and [3] are non-residual CNNs around ~1.9M; may fit well but more prone to optimization/overfitting vs comparable ResNets. [4] ResNet at 4.27M may start to overfit given dataset size unless strong augmentation/regularization. Small models [1],[0],[9] may underfit; among them [1] has best capacity. [8] (21M) is very likely to overfit/require much more data and compute; least promising for held-out generalization here.",
+      "seconds": 5.9
+    },
+    {
+      "trial": 18,
+      "ranking": [
+        2,
+        7,
+        5,
+        6,
+        3,
+        4,
+        1,
+        0,
+        9,
+        8
+      ],
+      "top_k": [
+        2,
+        7,
+        5,
+        6
+      ],
+      "reasoning": "Task: 150x150 grayscale, 3-way classification, 7200 train / 1800 val. Expect moderate data; need enough capacity for subtle substructure cues but avoid very large models that overfit. Residual connections help optimization/generalization at moderate depth; plain CNNs can work but deeper/wider ones may need stronger regularization.\n\nTop choices balance capacity (\u22480.4\u20131.5M params) with depth and inductive bias: [2] resnet_s3_narrow (0.393M) is a strong sweet spot\u2014multi-stage hierarchy with residuals, enough channels to capture fine lensing features while staying small. [7] resnet_s2_wide (1.047M) offers higher width for texture-like cues with manageable depth; good when input resolution is higher. [5] resnet_s3_deeper (1.472M) adds depth for compositional features; still reasonable capacity though riskier than [2]/[7].\n\nMid-tier: [6] cnn_s3_wide and [3] cnn_s4_mid have similar ~1.9M params; can perform well but lack residuals, increasing optimization/overfit sensitivity. [4] resnet_s4_balanced (4.27M) likely too large for 7.2k images unless heavy augmentation/regularization; may generalize worse than smaller resnets.\n\nLower tier: very small models [1],[0],[9] may underfit given subtle class differences; among them [1] slightly better capacity/feature hierarchy. Lowest: [8] (21.28M) is far too large for dataset size and likely to overfit; also unnecessarily deep/wide for 3 classes.",
+      "seconds": 7.1
+    },
+    {
+      "trial": 19,
+      "ranking": [
+        5,
+        2,
+        7,
+        6,
+        3,
+        4,
+        1,
+        0,
+        9,
+        8
+      ],
+      "top_k": [
+        5,
+        2,
+        7,
+        6
+      ],
+      "reasoning": "Task: 150x150 grayscale, 3-way classification, 7.2k train / 1.8k val. Need enough capacity to capture subtle lensing/substructure features but avoid severe overfitting given modest dataset size. Mid-sized models (~0.3M\u20132M params) with adequate depth and receptive field are typically the safest; extremely tiny nets may underfit, and very large (21M) likely overfit without heavy augmentation/regularization.\n\nTop considerations:\n- Depth/stage count helps hierarchical feature extraction for lensing patterns; residual connections aid optimization/generalization at moderate depth.\n- Parameter count relative to 7.2k: ~0.3\u20132M is a good bias-variance tradeoff; ~4M is plausible but riskier; 21M is very risk-prone.\n- Plain CNNs at similar size can do well, but deeper/wider plain CNNs can be harder to optimize vs ResNets; conversely, very small ResNets may be too constrained.\n\nRanking rationale:\n1) [5] ResNet, 1.47M, deeper (4-4-4) and moderate widths: strong representational power with residual optimization; good sweet spot for dataset size.\n2) [2] ResNet, 0.393M, 3 stages: enough capacity, likely robust generalization with lower overfit risk than ~2M+ models.\n3) [7] ResNet, 1.05M, 2 stages wide: fewer stages but decent capacity; should fit well though may miss some multi-scale richness vs s3/s4.\n4) [6] CNN, 1.88M, wide: good capacity; slight generalization/optimization disadvantage vs ResNet at similar scale.\n5) [3] CNN, 1.91M, deeper s4: similar size to [6] but more stages; however plain CNN + high top width can overfit a bit more.\n6) [4] ResNet, 4.27M s4: strong but likely somewhat over-parameterized for 7.2k unless strong regularization; still preferable to gigantic [8].\n7) [1] CNN, 0.07M: small but 3 stages; might be adequate with strong inductive bias; risk of underfitting subtle class cues.\n8) [0] ResNet, 0.043M: very small; residual helps but capacity likely too low.\n9) [9] CNN, 0.017M minimal: most likely to underfit.\n10) [8] ResNet 21.28M: far too large for dataset size; highest overfitting risk before any evidence of need for such capacity.",
+      "seconds": 10.9
+    },
+    {
+      "trial": 20,
+      "ranking": [
+        5,
+        2,
+        7,
+        6,
+        3,
+        4,
+        1,
+        0,
+        9,
+        8
+      ],
+      "top_k": [
+        5,
+        2,
+        7,
+        6
+      ],
+      "reasoning": "Task: 150x150 grayscale, 3-way classification, 7200 train / 1800 val. This is a moderate-sized dataset where models in ~0.3\u20132M params usually balance representation and overfitting risk; too tiny (\u22640.07M) may underfit subtle lensing substructure cues, while very large (21M) likely overfits without heavy augmentation/regularization.\n\nTop picks favor (a) sufficient depth/width to capture fine structures, (b) residual connections when depth is nontrivial to ease optimization, and (c) parameter count commensurate with data.\n\n- [5] (ResNet, 1.47M) offers good depth (4-4-4) with moderate widths; residuals help training/generalization at this depth, and capacity is well-matched to 7.2k samples.\n- [2] (ResNet, 0.393M) is a strong mid-capacity option: enough channels and 3 stages to model the signal while being less prone to overfit.\n- [7] (ResNet, 1.05M) is simpler (2 stages) but wide; should fit well and train stably; slightly less hierarchical depth than [5] for 150x150 but still solid.\n\nNext tier:\n- [6]/[3] (CNNs ~1.88\u20131.91M) have adequate capacity, but without residuals may be a bit harder to optimize as depth grows; still likely competitive.\n- [4] (ResNet, 4.27M) may start to overfit given 7.2k images unless augmentation/weight decay are strong; could win if regularized well, but riskier a priori.\n\nLower tier:\n- [1], [0], [9] are very small and likely to underfit subtle morphology differences.\n- [8] (21.28M) is disproportionately large for this dataset size; highest overfitting risk pre-training.",
+      "seconds": 8.5
+    }
+  ],
+  "summary": {
+    "n_rankings": 20,
+    "n_pairs": 190,
+    "kendall_tau_mean": 0.927,
+    "kendall_tau_min": 0.7778,
+    "kendall_tau_max": 1.0,
+    "kendall_tau_stdev": 0.0505,
+    "identical_rankings": 8,
+    "top_k": 4,
+    "top_k_frequency": {
+      "resnet_s3_narrow_d2-2-2_w24-48-96": "20/20",
+      "resnet_s3_deeper_d4-4-4_w32-64-128": "20/20",
+      "resnet_s2_wide_d3-3_w64-128": "19/20",
+      "cnn_s3_wide_d2-3-3_w64-128-256": "17/20",
+      "cnn_s4_mid_d2-2-3-3_w32-64-128-256": "2/20",
+      "resnet_s4_balanced_d2-2-3-3_w32-64-128-256": "2/20"
+    },
+    "rank1_frequency": {
+      "resnet_s3_deeper_d4-4-4_w32-64-128": "12/20",
+      "resnet_s3_narrow_d2-2-2_w24-48-96": "8/20"
+    }
+  }
+}

@@ -1,0 +1,124 @@
+{
+  "mode": "e4",
+  "source": "/Users/asalunke/Personal/GSoC/deeplense_artifacts/pilot/experiment_b/expB_run0_seed0/metrics.json",
+  "epochs": 25,
+  "seed": 0,
+  "train_dir": "train",
+  "val_dir": "val",
+  "n_train": 7200,
+  "n_val": 1800,
+  "judge_ranking": [
+    5,
+    7,
+    2,
+    6,
+    3,
+    4,
+    1,
+    0,
+    9,
+    8
+  ],
+  "shortlist_recorded": [
+    {
+      "name": "resnet_s3_deeper_d4-4-4_w32-64-128",
+      "params_m": 1.472,
+      "train_accuracy": 0.9085,
+      "val_accuracy": 0.8855555555555555,
+      "gap": 0.0229,
+      "macro_auc": 0.9688189814814815,
+      "train_seconds": 92.6
+    },
+    {
+      "name": "resnet_s2_wide_d3-3_w64-128",
+      "params_m": 1.047,
+      "train_accuracy": 0.8969,
+      "val_accuracy": 0.8805555555555555,
+      "gap": 0.0163,
+      "macro_auc": 0.9718087962962962,
+      "train_seconds": 121.3
+    },
+    {
+      "name": "resnet_s3_narrow_d2-2-2_w24-48-96",
+      "params_m": 0.393,
+      "train_accuracy": 0.9293,
+      "val_accuracy": 0.8588888888888889,
+      "gap": 0.0704,
+      "macro_auc": 0.955163425925926,
+      "train_seconds": 56.2
+    },
+    {
+      "name": "cnn_s3_wide_d2-3-3_w64-128-256",
+      "params_m": 1.884,
+      "train_accuracy": 0.7892,
+      "val_accuracy": 0.7916666666666666,
+      "gap": -0.0025,
+      "macro_auc": 0.9198023148148149,
+      "train_seconds": 639.3
+    }
+  ],
+  "results": [
+    {
+      "name": "resnet_s3_narrow_d2-2-2_w24-48-96",
+      "judge_rank": 3,
+      "params_m": 0.393,
+      "train_accuracy": 1.0,
+      "val_accuracy": 0.8388888888888889,
+      "gap": 0.1611,
+      "macro_auc": 0.9437745370370371,
+      "train_seconds": 117.4,
+      "recorded_short_val": 0.8588888888888889
+    },
+    {
+      "name": "resnet_s3_deeper_d4-4-4_w32-64-128",
+      "judge_rank": 1,
+      "params_m": 1.472,
+      "train_accuracy": 0.9806,
+      "val_accuracy": 0.8761111111111111,
+      "gap": 0.1045,
+      "macro_auc": 0.9659935185185186,
+      "train_seconds": 198.9,
+      "recorded_short_val": 0.8855555555555555
+    },
+    {
+      "name": "cnn_s3_wide_d2-3-3_w64-128-256",
+      "judge_rank": 4,
+      "params_m": 1.884,
+      "train_accuracy": 0.8988,
+      "val_accuracy": 0.8127777777777778,
+      "gap": 0.086,
+      "macro_auc": 0.9336083333333334,
+      "train_seconds": 1543.3,
+      "recorded_short_val": 0.7916666666666666
+    },
+    {
+      "name": "resnet_s2_wide_d3-3_w64-128",
+      "judge_rank": 2,
+      "params_m": 1.047,
+      "train_accuracy": 0.9657,
+      "val_accuracy": 0.8983333333333333,
+      "gap": 0.0674,
+      "macro_auc": 0.9740986111111111,
+      "train_seconds": 300.7,
+      "recorded_short_val": 0.8805555555555555
+    }
+  ],
+  "comparison": {
+    "short_epoch_ranking": [
+      "resnet_s3_deeper_d4-4-4_w32-64-128",
+      "resnet_s2_wide_d3-3_w64-128",
+      "resnet_s3_narrow_d2-2-2_w24-48-96",
+      "cnn_s3_wide_d2-3-3_w64-128-256"
+    ],
+    "full_epoch_ranking": [
+      "resnet_s2_wide_d3-3_w64-128",
+      "resnet_s3_deeper_d4-4-4_w32-64-128",
+      "resnet_s3_narrow_d2-2-2_w24-48-96",
+      "cnn_s3_wide_d2-3-3_w64-128-256"
+    ],
+    "kendall_tau": 0.6667,
+    "short_winner": "resnet_s3_deeper_d4-4-4_w32-64-128",
+    "full_winner": "resnet_s2_wide_d3-3_w64-128",
+    "winner_preserved": false
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "full_kendall_tau": 0.24444444444444444,
+  "full_spearman": 0.23636363636363636,
+  "rows": [
+    {
+      "name": "resnet_tiny_s3",
+      "judge_score": 3,
+      "val": 0.385
+    },
+    {
+      "name": "cnn_tiny_s3",
+      "judge_score": 2,
+      "val": 0.34444444444444444
+    },
+    {
+      "name": "resnet_small_s4",
+      "judge_score": 9,
+      "val": 0.7188888888888889
+    },
+    {
+      "name": "cnn_small_deep_s4",
+      "judge_score": 8,
+      "val": 0.7022222222222222
+    },
+    {
+      "name": "resnet_wide_shallow_s3",
+      "judge_score": 10,
+      "val": 0.5211111111111111
+    },
+    {
+      "name": "resnet_deep_narrow_s4",
+      "judge_score": 5,
+      "val": 0.6588888888888889
+    },
+    {
+      "name": "cnn_medium_s4",
+      "judge_score": 7,
+      "val": 0.7733333333333333
+    },
+    {
+      "name": "resnet_mediumplus_s4",
+      "judge_score": 6,
+      "val": 0.7516666666666667
+    },
+    {
+      "name": "cnn_wide_s4",
+      "judge_score": 4,
+      "val": 0.5233333333333333
+    },
+    {
+      "name": "resnet_large_s4",
+      "judge_score": 1,
+      "val": 0.7416666666666667
+    }
+  ]
+}

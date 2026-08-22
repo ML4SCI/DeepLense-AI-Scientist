@@ -1,0 +1,1446 @@
+{
+  "model": "gpt-5.2",
+  "trials": 20,
+  "started_utc": "2026-08-11T01:27:23Z",
+  "states": {
+    "overfit": {
+      "provenance": "VERBATIM RECORDED \u2014 paper_run resnet34_ref iteration 0",
+      "numbers": "train 0.9839 / val 0.7517 / gap 0.2322 / macro_auc 0.8922",
+      "expected": "regularize (augment / dropout / weight decay / early stop)",
+      "trials": [
+        {
+          "trial": 1,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Train acc is very high (0.9839) while validation acc is much lower (0.7517), indicating strong overfitting/generalization gap. Augmentation is currently off; enabling it is the smallest intervention to improve generalization without changing architecture. Class confusions (cdm vs axion) suggest more invariance/robustness needed, which augmentation can help.",
+          "quality": "ok",
+          "seconds": 2.9
+        },
+        {
+          "trial": 2,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Large generalization gap: train_accuracy=0.9839 vs val_accuracy=0.7517 indicates overfitting. Also augment=false; adding augmentation is the smallest intervention to improve generalization without altering architecture. Class confusion mainly between cdm and axion suggests need for invariances/robustness rather than capacity increase.",
+          "quality": "ok",
+          "seconds": 2.5
+        },
+        {
+          "trial": 3,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Run 0 shows a large generalization gap: train_accuracy=0.9839 vs val accuracy=0.7517, indicating overfitting (also class confusion between cdm and axion: 152 cdm\u2192axion and 161 axion\u2192cdm). Current setup has no augmentation and dropout=0.0. Smallest targeted intervention is to enable data augmentation to improve invariance and reduce overfitting without changing the model.",
+          "quality": "ok",
+          "seconds": 2.6
+        },
+        {
+          "trial": 4,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true
+            }
+          },
+          "knobs": [
+            "training.augment"
+          ],
+          "rationale": "Run 0 shows strong overfitting/generalization gap: train_accuracy=0.9839 vs val/holdout accuracy=0.7517 (~23.2 pp gap) with no augmentation and dropout=0.0. Errors are concentrated between 'cdm' and 'axion' (confusion: cdm\u2192axion=152, axion\u2192cdm=161), suggesting the model needs stronger invariances/regularization rather than more capacity. Smallest intervention is to enable data augmentation to improve generalization without changing architecture.",
+          "quality": "ok",
+          "seconds": 3.5
+        },
+        {
+          "trial": 5,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Strong overfitting/generalization gap: train_accuracy=0.9839 vs val_accuracy=0.7517 (gap ~0.232) with augment off and dropout=0.0. Per-class shows confusion between cdm and axion (cdm recall 0.6267; many cdm\u2192axion=152). Smallest intervention to improve generalization is enabling data augmentation; keep other hyperparameters fixed to isolate effect (may also help class-invariant features).",
+          "quality": "ok",
+          "seconds": 2.8
+        },
+        {
+          "trial": 6,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Large generalization gap indicates overfitting: train_accuracy=0.9839 vs val_accuracy=0.7517. No regularization/augmentation is used (dropout=0, augment=false). Confusions show notable cdm\u2194axion mixups (cdm predicted as axion=152; axion as cdm=161), consistent with poor invariance. Enable data augmentation as the smallest intervention to improve generalization without changing architecture.",
+          "quality": "ok",
+          "seconds": 2.4
+        },
+        {
+          "trial": 7,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true
+            }
+          },
+          "knobs": [
+            "training.augment"
+          ],
+          "rationale": "Iteration 0 shows strong train accuracy (0.9839) but much lower validation accuracy (0.7517), indicating substantial overfitting/generalization gap. No data augmentation is used (augment=false), dropout=0.0. Confusion matrix shows heavy confusion between 'cdm' and 'axion' (152 cdm\u2192axion, 161 axion\u2192cdm), suggesting invariances/robustness could help. Smallest effective intervention is to enable augmentation to improve generalization without changing architecture or optimizer. Keep other hyperparams fixed to isolate effect; optionally add early stopping later if needed.",
+          "quality": "ok",
+          "seconds": 2.7
+        },
+        {
+          "trial": 8,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Large generalization gap: train_accuracy=0.9839 vs validation accuracy=0.7517 indicates overfitting (also confusion shows strong cdm/axion confusion: cdm->axion 152, axion->cdm 161). No augmentation and dropout=0.0 likely contribute. Smallest intervention is to enable data augmentation to improve invariance and generalization without changing architecture or optimizer.",
+          "quality": "ok",
+          "seconds": 2.2
+        },
+        {
+          "trial": 9,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Large generalization gap indicates overfitting: train_accuracy=0.9839 vs val/holdout accuracy=0.7517. No regularization/augmentation used (dropout=0.0, augment=false). Confusions show notable cdm\u2194axion mix (152 cdm\u2192axion, 161 axion\u2192cdm), suggesting decision boundary not robust. Smallest targeted intervention is to enable data augmentation to improve invariance and generalization without altering architecture or optimizer.",
+          "quality": "ok",
+          "seconds": 2.6
+        },
+        {
+          "trial": 10,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Train acc is very high (0.984) while validation acc is much lower (0.752), indicating strong overfitting/generalization gap. No augmentation is currently used (augment=false) and dropout=0.0, so the smallest effective intervention is to enable data augmentation to improve invariance and reduce overfitting. This should particularly help the confused cdm/axion classes (152 cdm\u2192axion, 161 axion\u2192cdm).",
+          "quality": "ok",
+          "seconds": 2.2
+        },
+        {
+          "trial": 11,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Large generalization gap indicates overfitting: train_accuracy=0.9839 vs val accuracy=0.7517. Also notable cdm/axion confusion (152 cdm\u2192axion, 161 axion\u2192cdm). The current run uses no augmentation and zero dropout, so add data augmentation as the smallest intervention to improve invariance and reduce overfitting without changing architecture or optimizer.",
+          "quality": "ok",
+          "seconds": 2.9
+        },
+        {
+          "trial": 12,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Strong overfitting/generalization gap: train_accuracy=0.984 vs val_accuracy=0.752. No augmentation and dropout=0.0 suggest insufficient regularization. Biggest confusion is between cdm and axion (152 cdm\u2192axion, 161 axion\u2192cdm), consistent with needing invariance/robust features. Make a single minimal change: enable data augmentation to improve generalization without altering architecture or optimizer settings.",
+          "quality": "ok",
+          "seconds": 2.6
+        },
+        {
+          "trial": 13,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Large generalization gap: train_accuracy=0.984 vs val_accuracy=0.752 indicates strong overfitting. augment=false and dropout=0.0 suggest insufficient regularization. Confusion matrix shows notable cdm\u2194axion confusion (152 cdm\u2192axion, 161 axion\u2192cdm). Turn on data augmentation to improve invariance and generalization without changing model size.",
+          "quality": "ok",
+          "seconds": 2.2
+        },
+        {
+          "trial": 14,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Large generalization gap indicates overfitting: train_accuracy=0.9839 vs validation accuracy=0.7517. No augmentation is used (augment=false) and dropout=0.0, so the model likely memorizes. The most direct single intervention is to enable data augmentation to improve invariance and reduce overfitting, aiming to lift validation accuracy and especially cdm recall (0.6267) where confusion with axion is high.",
+          "quality": "ok",
+          "seconds": 2.9
+        },
+        {
+          "trial": 15,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Train acc is very high (0.984) while validation accuracy is much lower (0.752), indicating substantial overfitting / poor generalization. Augmentation is currently off; enabling it is the smallest change likely to improve generalization and specifically help confusing classes (cdm vs axion) seen in the confusion matrix (152 cdm\u2192axion, 161 axion\u2192cdm).",
+          "quality": "ok",
+          "seconds": 2.2
+        },
+        {
+          "trial": 16,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Train acc 0.984 vs val acc 0.752 shows large generalization gap (overfitting). No augmentation is used; adding data augmentation is the smallest intervention likely to improve validation performance and class robustness (notably cdm recall 0.627). Keep architecture and other hyperparams constant to isolate effect.",
+          "quality": "ok",
+          "seconds": 2.8
+        },
+        {
+          "trial": 17,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Observed strong overfitting: train_accuracy=0.9839 vs val accuracy=0.7517 (gap ~0.23) with no augmentation and dropout=0.0. Per-class shows confusion between cdm and axion (cdm recall 0.6267; many cdm\u2192axion=152). Smallest intervention to improve generalization and robustness is to enable data augmentation; prior runs show augment=false so this change has not been tried yet.",
+          "quality": "ok",
+          "seconds": 3.7
+        },
+        {
+          "trial": 18,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Large generalization gap suggests overfitting: train_accuracy=0.9839 vs val/holdout accuracy=0.7517 (gap ~0.23) with no augmentation and dropout=0. Confusion shows notable cdm\u2194axion confusion (cdm recall 0.6267; 152 cdm\u2192axion, 161 axion\u2192cdm). Smallest intervention to improve generalization is to enable data augmentation while keeping other settings fixed to avoid confounding.",
+          "quality": "ok",
+          "seconds": 2.7
+        },
+        {
+          "trial": 19,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Run 0 shows strong overfitting: train_accuracy=0.9839 vs val/holdout accuracy=0.7517 (gap ~0.23) with augment disabled and dropout=0.0. Per-class metrics show confusion between cdm and axion (cdm recall 0.6267; many cdm\u2192axion=152, axion\u2192cdm=161). The smallest intervention to improve generalization is to enable data augmentation to reduce overfitting and improve robustness without changing architecture or optimization dynamics.",
+          "quality": "ok",
+          "seconds": 2.6
+        },
+        {
+          "trial": 20,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Large generalization gap indicates overfitting: train_accuracy=0.9839 vs val accuracy=0.7517 (~23 pts). No augmentation and dropout=0.0 likely limit generalization. Introduce data augmentation as the smallest single intervention to improve robustness and class separation (notably cdm recall=0.627). Keep other hyperparams unchanged to isolate effect.",
+          "quality": "ok",
+          "seconds": 2.7
+        }
+      ],
+      "summary": {
+        "n": 20,
+        "actions": {
+          "train": 20
+        },
+        "knob_sets": {
+          "training.augment,training.early_stop_patience": 18,
+          "training.augment": 2
+        },
+        "quality": {
+          "ok": 20
+        },
+        "action_entropy_bits": -0.0,
+        "knobset_entropy_bits": 0.469,
+        "modal_knob_set": [
+          "training.augment,training.early_stop_patience",
+          18
+        ]
+      }
+    },
+    "healthy": {
+      "provenance": "VERBATIM RECORDED \u2014 paper_run resnet34_ref iteration 1",
+      "numbers": "train 0.8233 / val 0.8167 / gap 0.0066 / macro_auc 0.9283",
+      "expected": "stop or report (the gap is closed)",
+      "trials": [
+        {
+          "trial": 1,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true
+            }
+          },
+          "knobs": [
+            "training.augment"
+          ],
+          "rationale": "Iteration 0 shows no meaningful generalization gap: train_accuracy=0.823 vs val/infer accuracy=0.817, so overfitting is not the limiter. Performance is limited by class confusion, especially cdm\u2194axion (confusion: cdm\u2192axion=200, axion\u2192cdm=93) with lower per-class F1 for cdm (0.630) and axion (0.732). With augment=false, enabling augmentation is the smallest intervention likely to improve robustness and reduce this confusion without changing architecture. Keep other hyperparams fixed to isolate effect; optionally add early stopping later if needed.",
+          "quality": "harmful",
+          "seconds": 2.7
+        },
+        {
+          "trial": 2,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Train vs validation accuracy are close (0.823 train vs 0.817 val), so no clear overfitting; likely underfitting/insufficient invariance. Confusion matrix shows strong confusion between 'cdm' and 'axion' (200 cdm\u2192axion, 93 axion\u2192cdm) with low cdm F1=0.630. Enabling data augmentation is the smallest change to improve class-separating robustness and generalization without altering architecture.",
+          "quality": "harmful",
+          "seconds": 2.3
+        },
+        {
+          "trial": 3,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true
+            }
+          },
+          "knobs": [
+            "training.augment"
+          ],
+          "rationale": "Train vs validation accuracy are essentially matched (train_accuracy=0.823 vs val accuracy=0.817), so no strong overfitting signal; performance is limited by class confusion, especially cdm\u2194axion (cm: cdm misclassified as axion 200/600; axion\u2192cdm 93/600) with cdm precision/recall ~0.633/0.627. This suggests insufficient invariance/feature robustness rather than capacity. Enable data augmentation as the smallest intervention to improve generalization and class-discriminative cues without changing architecture.",
+          "quality": "harmful",
+          "seconds": 2.4
+        },
+        {
+          "trial": 4,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Train vs validation accuracy are essentially matched (0.823 train vs 0.817 val), indicating little overfitting; performance seems limited by generalization/robustness rather than capacity. Confusion matrix shows strong confusion between cdm and axion (cdm: 200\u2192axion; axion: 93\u2192cdm) with modest cdm precision/recall (~0.63). Enabling data augmentation is the smallest single change likely to improve invariance and reduce class confusion without altering architecture.",
+          "quality": "harmful",
+          "seconds": 2.5
+        },
+        {
+          "trial": 5,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Validation accuracy (0.8167) is close to train accuracy (0.8233), indicating little generalization gap; performance is limited by class confusion, especially cdm vs axion (200 cdm\u2192axion, 93 axion\u2192cdm). With augment off and dropout 0, the most likely improvement is to increase invariance/robustness and class separation via data augmentation rather than more regularization or architecture changes. Make one minimal change: enable augmentation.",
+          "quality": "harmful",
+          "seconds": 3.1
+        },
+        {
+          "trial": 6,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Validation accuracy (0.8167) is close to train accuracy (0.8233), so there is no clear generalization gap/overfitting to address. The main issue is class confusion: many cdm\u2192axion (200) and axion\u2192cdm (93), with cdm recall 0.6267 and precision 0.633. This suggests the model needs stronger invariances/feature robustness rather than more regularization. Enabling data augmentation is the smallest targeted change to improve separability of the confused classes without altering architecture.",
+          "quality": "harmful",
+          "seconds": 2.8
+        },
+        {
+          "trial": 7,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Run0 shows mild generalization gap: train_acc=0.823 vs val_acc=0.817 (small), so not strong overfitting. Main issue is class confusion between 'cdm' and 'axion' (cm: cdm mis->axion=200, axion mis->cdm=93; cdm precision/recall ~0.633/0.627). This suggests the model needs stronger invariances/regularization to learn more robust class-specific cues. Smallest high-impact change is to enable data augmentation to improve decision boundaries between similar classes without altering architecture or optimizer settings.",
+          "quality": "harmful",
+          "seconds": 3.3
+        },
+        {
+          "trial": 8,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true
+            }
+          },
+          "knobs": [
+            "training.augment"
+          ],
+          "rationale": "Train vs validation accuracy are close (0.823 train vs 0.817 val), indicating little overfitting and suggesting performance is limited by generalization/representation rather than capacity. The largest error mode is class confusion between 'cdm' and 'axion' (200 cdm\u2192axion, 93 axion\u2192cdm), with weakest precision/recall on cdm (~0.63/0.63). Introducing data augmentation is the smallest intervention to improve invariance and reduce this confusion without changing architecture or optimization; prior runs did not test augment=false\u2192true, so this is non-redundant.",
+          "quality": "harmful",
+          "seconds": 2.8
+        },
+        {
+          "trial": 9,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Iteration 0 shows near-parity train vs validation accuracy (train 0.823 vs val 0.817), so not a strong overfitting signal; performance is limited by class confusion between 'cdm' and 'axion' (cm: 200 cdm\u2192axion, 93 axion\u2192cdm) with low cdm precision/recall (~0.633/0.627). A small generalization/robustness boost is likely from stronger invariances; enable data augmentation as the smallest intervention without changing optimization or architecture.",
+          "quality": "harmful",
+          "seconds": 2.6
+        },
+        {
+          "trial": 10,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Train/val are close (train_acc=0.823 vs val_acc=0.817), so not a strong overfitting gap; performance is limited by generalization/feature robustness. Confusion shows heavy cdm\u2194axion confusion (cdm recall=0.627 with 200 cdm\u2192axion; axion recall=0.723 with 93 axion\u2192cdm). The most direct next step is to add data augmentation to improve invariance and reduce class confusion without changing architecture.",
+          "quality": "harmful",
+          "seconds": 4.7
+        },
+        {
+          "trial": 11,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Iteration 0 shows minimal generalization gap (train_accuracy=0.823 vs val_accuracy=0.817), so not overfitting; performance is limited by class confusion, especially cdm vs axion (confusion: 200 cdm\u2192axion and 93 axion\u2192cdm; cdm recall=0.627). The simplest next step is to improve invariance and effective data diversity via augmentation, which often helps reduce such confusions without changing the model. Keep other hyperparameters fixed to isolate effect.",
+          "quality": "harmful",
+          "seconds": 2.9
+        },
+        {
+          "trial": 12,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Validation accuracy (0.8167) is close to train accuracy (0.8233), so there is little generalization gap; performance is limited by class confusion, especially cdm vs axion (200 cdm\u2192axion and 93 axion\u2192cdm). With no augmentation, the model likely lacks invariance and struggles on subtle morphology differences. Smallest evidence-based intervention is to enable data augmentation to improve robustness and class separation without changing architecture.",
+          "quality": "harmful",
+          "seconds": 5.9
+        },
+        {
+          "trial": 13,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Validation accuracy (0.8167) is close to train accuracy (0.8233), so there is no clear overfitting; performance is limited by class confusion, especially cdm vs axion (200 cdm predicted as axion; cdm recall 0.6267). With augment=false, the model may not be invariant to nuisance variations; enabling augmentation is the smallest intervention to improve generalization and class separability without changing architecture or optimizer. Keep other hyperparameters to isolate effect; optionally add early stopping to avoid regression, but primary change is augmentation.",
+          "quality": "harmful",
+          "seconds": 3.3
+        },
+        {
+          "trial": 14,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Validation accuracy (0.8167) is close to train accuracy (0.8233), so little generalization gap; performance limit is likely data/feature invariance rather than overfitting. Macro AUC is high (0.928), but confusion shows strong cdm\u2194axion confusion (cdm recall 0.6267; 200 cdm\u2192axion, 93 axion\u2192cdm). Introduce augmentation to encourage invariant features and improve class separation without changing architecture. This is a minimal intervention not yet tried (augment=false).",
+          "quality": "harmful",
+          "seconds": 3.2
+        },
+        {
+          "trial": 15,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Train vs validation accuracy are essentially matched (0.823 train vs 0.817 val), so no strong overfitting; performance is limited by class confusion between 'cdm' and 'axion' (cdm recall 0.627 with 200/600 cdm mislabeled as axion; axion recall 0.723 with 93/600 mislabeled as cdm). This suggests the model needs better invariances/robust features rather than more capacity. Enable data augmentation as the smallest intervention to improve generalization on these hard classes without changing architecture or optimizer.",
+          "quality": "harmful",
+          "seconds": 2.7
+        },
+        {
+          "trial": 16,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true
+            }
+          },
+          "knobs": [
+            "training.augment"
+          ],
+          "rationale": "Iteration 0 shows mild generalization gap: train_acc=0.823 vs val_acc=0.817 (small), so not strong overfitting; performance limit is class confusion between cdm and axion (cdm recall=0.627 with 200/600 cdm misclassified as axion; axion also confused as cdm: 93/600). This pattern suggests insufficient invariance/robustness rather than capacity. Smallest intervention: enable data augmentation to improve class-separating features and reduce confusion without altering architecture or optimization, avoiding repeating untried changes.",
+          "quality": "harmful",
+          "seconds": 3.1
+        },
+        {
+          "trial": 17,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true
+            }
+          },
+          "knobs": [
+            "training.augment"
+          ],
+          "rationale": "Validation accuracy (0.8167) is very close to train accuracy (0.8233), so there is no clear overfitting gap to close; instead performance is limited by class confusion, especially cdm vs axion (200 cdm\u2192axion, 93 axion\u2192cdm). With no augmentation enabled, adding augmentation is the smallest intervention to improve invariance and separability without changing the model. Keep other hyperparameters unchanged to isolate effect; optionally enable early stopping next if needed.",
+          "quality": "harmful",
+          "seconds": 2.7
+        },
+        {
+          "trial": 18,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Observed metrics show little generalization gap: train_accuracy=0.823 vs val accuracy=0.817, so not classic overfitting. Main issue is class confusion between 'cdm' and 'axion' (confusion: cdm\u2192axion=200, axion\u2192cdm=93) with low cdm F1=0.630 while no_sub is strong (F1=0.890). This suggests the model needs better invariances/feature diversity rather than more capacity. Enable data augmentation to improve class separation without changing architecture; keep other hyperparams to isolate effect. Pair with early stopping to avoid potential over-training once augmentation is on.",
+          "quality": "harmful",
+          "seconds": 5.1
+        },
+        {
+          "trial": 19,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Iteration 0 shows little generalization gap (train_accuracy=0.823 vs val_accuracy=0.8167), so not overfitting. Performance is limited by class confusion, especially between cdm and axion (cdm recall=0.6267 with 200 cdm\u2192axion errors; axion recall=0.7233 with 93 axion\u2192cdm). With augment=false, the model may lack invariance/robustness. Smallest intervention: enable data augmentation to improve separability without changing architecture.",
+          "quality": "harmful",
+          "seconds": 2.3
+        },
+        {
+          "trial": 20,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Train vs validation accuracy are essentially matched (0.823 train vs 0.817 val), so generalization gap is small; performance is limited by class confusion (cdm\u2194axion: 200 cdm\u2192axion, 93 axion\u2192cdm) rather than overfitting. Enable data augmentation to improve invariance and reduce this systematic confusion without changing architecture. Avoid repeating LR/WD changes without evidence of optimization issues since loss is low and train accuracy already high.",
+          "quality": "harmful",
+          "seconds": 2.8
+        }
+      ],
+      "summary": {
+        "n": 20,
+        "actions": {
+          "train": 20
+        },
+        "knob_sets": {
+          "training.augment": 5,
+          "training.augment,training.early_stop_patience": 15
+        },
+        "quality": {
+          "harmful": 20
+        },
+        "action_entropy_bits": -0.0,
+        "knobset_entropy_bits": 0.811,
+        "modal_knob_set": [
+          "training.augment,training.early_stop_patience",
+          15
+        ]
+      }
+    },
+    "underfit": {
+      "provenance": "CONSTRUCTED PROBE \u2014 val/AUC/confusion verbatim from ai_scientist_run tuning iteration 0; train set to 0.6500 so train and val are both low with no gap",
+      "numbers": "train 0.6500 / val 0.6294 / gap 0.0206 / macro_auc 0.8068",
+      "expected": "add capacity or training (more epochs / larger model / higher LR); adding regularization would be harmful",
+      "trials": [
+        {
+          "trial": 1,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Train acc=0.65 and val acc=0.629 are both low with a small generalization gap (~0.02), indicating underfitting/insufficient regularized learning rather than overfitting. No augmentation is used; adding augmentation is a minimal intervention to improve generalization and class robustness (confusion shows substantial cross-class errors for cdm/axion). Keep architecture and other hparams fixed to isolate effect.",
+          "quality": "harmful",
+          "seconds": 2.2
+        },
+        {
+          "trial": 2,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Iteration 0 shows mild underfitting/optimization limits rather than overfitting: train_accuracy=0.65 is close to val accuracy=0.629, so regularization is not the main issue. Macro AUC is reasonably high (0.807) but accuracy is modest with notable cdm confusions, suggesting the model could benefit from stronger data variability to learn more robust decision boundaries. The smallest intervention is to enable augmentation to improve generalization and class separation without changing architecture or optimizer.",
+          "quality": "harmful",
+          "seconds": 2.6
+        },
+        {
+          "trial": 3,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Train/val are both low and close: train_accuracy=0.65 vs val_accuracy=0.629, suggesting underfitting or insufficient regularization/robustness rather than overfitting. Macro AUC is decent (0.807) but accuracy suffers with notable cross-class confusion, so improving invariance via data augmentation is the smallest intervention likely to help generalization without changing capacity. No prior iterations, so this change has not been tried.",
+          "quality": "harmful",
+          "seconds": 2.7
+        },
+        {
+          "trial": 4,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Validation accuracy (0.629) is close to train accuracy (0.65), indicating underfitting/insufficient regularization is not the main issue; rather, the model likely needs better data diversity to improve generalization. With augment=false and dropout=0, enabling augmentation is the smallest intervention to boost robustness without changing architecture. Per-class metrics show class confusions (cdm vs others), consistent with needing invariance. Keep other hyperparameters fixed to isolate effect.",
+          "quality": "harmful",
+          "seconds": 2.7
+        },
+        {
+          "trial": 5,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Train vs validation are both low and close (train_accuracy=0.65 vs val_accuracy=0.629), indicating underfitting/insufficient regularization is not the issue; rather the model may benefit from better generalization and optimization via data augmentation. Confusion matrix shows substantial cross-class confusion (e.g., no_sub\u2192cdm/axion and cdm\u2194no_sub), consistent with limited invariance. Enable augmentation as the smallest intervention likely to improve validation without altering architecture. Keep other hyperparameters unchanged to isolate effect; optionally add early stopping next if needed.",
+          "quality": "harmful",
+          "seconds": 3.3
+        },
+        {
+          "trial": 6,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Iteration 0 shows slight underfitting/optimization limit rather than overfitting: train_accuracy=0.65 and validation accuracy=0.629 are both low with a small gap (~0.02). Confusion matrix indicates substantial class confusion, especially cdm vs others (cdm recall=0.6267). A small generalization gap suggests regularization isn\u2019t the main issue; improving effective data diversity and invariance is a low-risk next step. Enable augmentation to help the model learn more robust features and reduce inter-class confusion without changing architecture or other hyperparameters.",
+          "quality": "harmful",
+          "seconds": 4.7
+        },
+        {
+          "trial": 7,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Validation accuracy (0.629) is close to train accuracy (0.65), indicating little generalization gap and likely underfitting / insufficient invariance rather than overfitting. Per-class metrics show confusion between classes (notably cdm vs others; cdm recall 0.627) and macro AUC is decent (0.807), suggesting the model has signal but needs stronger regularization/invariance to improve decision boundaries. The smallest high-leverage change is to enable data augmentation to improve robustness and class separation without altering architecture or optimization.",
+          "quality": "harmful",
+          "seconds": 4.2
+        },
+        {
+          "trial": 8,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Train vs validation are close (train_accuracy=0.65, val_accuracy=0.629), indicating little/no overfitting; rather mild underfitting or optimization/data-coverage limits. Macro AUC is decent (0.807) but accuracy lags, with notable confusion between classes (e.g., no_sub misclassified as cdm/axion; cdm vs no_sub). Enabling augmentation is the smallest intervention to improve generalization and class-separating invariances without changing architecture; it should help reduce confusion while not risking over-regularization given no gap.",
+          "quality": "harmful",
+          "seconds": 3.4
+        },
+        {
+          "trial": 9,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Train vs validation are close (train_accuracy=0.65 vs val_accuracy=0.629), indicating mild underfitting/insufficient invariance rather than overfitting. Confusion shows substantial cross-class errors (e.g., no_sub\u2192cdm 124, axion\u2192no_sub 164), suggesting the model would benefit from data augmentation to improve generalization without changing capacity. Make a single change: enable augmentations; keep other hyperparameters fixed to isolate effect.",
+          "quality": "harmful",
+          "seconds": 2.8
+        },
+        {
+          "trial": 10,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true
+            }
+          },
+          "knobs": [
+            "training.augment"
+          ],
+          "rationale": "Iteration 0 shows mild underfitting/optimization limits rather than overfitting: train_accuracy=0.65 is close to validation accuracy=0.629 (gap ~0.02). With no augmentation and dropout=0, the model isn\u2019t even fitting the training set strongly. A standard next smallest intervention to improve generalization and effective data size is to enable data augmentation; this often boosts both train and validation without architectural changes. Confusion matrix shows notable cross-class confusion for 'cdm' (recall 0.6267) and 'axion' (recall 0.7233), consistent with needing more invariant features; augmentation can help.",
+          "quality": "harmful",
+          "seconds": 3.4
+        },
+        {
+          "trial": 11,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Train and validation accuracies are both low and close (train_accuracy=0.65 vs val_accuracy=0.629), indicating underfitting/optimization limits rather than overfitting. Macro AUC is decent (0.807) suggesting the model can separate classes but decision boundaries aren\u2019t sharp; enabling data augmentation should improve generalization and robustness without changing architecture. No prior changes attempted, so start with the smallest intervention.",
+          "quality": "harmful",
+          "seconds": 2.3
+        },
+        {
+          "trial": 12,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true
+            }
+          },
+          "knobs": [
+            "training.augment"
+          ],
+          "rationale": "Train acc 0.65 is close to val acc 0.629 (gap ~0.02), indicating underfitting/insufficient regularization not the issue; need to improve effective data diversity and feature learning. Confusion shows substantial cross-class confusion, especially no_sub vs cdm/axion, suggesting invariance/generalization could benefit from augmentation. Smallest intervention: enable augmentation; keep other hyperparams fixed to isolate effect (can pair with early stopping later if needed).",
+          "quality": "harmful",
+          "seconds": 3.2
+        },
+        {
+          "trial": 13,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true
+            }
+          },
+          "knobs": [
+            "training.augment"
+          ],
+          "rationale": "Observed mild underfitting/optimization limits: train_accuracy=0.65 and val accuracy=0.629 (small gap ~0.02), so not primarily overfitting. With no augmentation and dropout=0, improving generalization and effective data diversity is the smallest intervention likely to lift validation, especially given confusion among classes (substantial off-diagonal counts). Enable augmentation while keeping architecture fixed; optionally pair with early stopping later if needed, but first isolate augment effect.",
+          "quality": "harmful",
+          "seconds": 2.8
+        },
+        {
+          "trial": 14,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Train acc (0.65) is close to val acc (0.629), indicating little generalization gap and mild underfitting/insufficient effective data variability. Confusion shows notable cross-class confusion (e.g., no_sub\u2194cdm: 124+153; axion\u2194no_sub: 164+80), suggesting the model needs more robust invariances rather than stronger regularization. Enable data augmentation as the smallest intervention to improve feature robustness and potentially boost validation accuracy without changing architecture.",
+          "quality": "harmful",
+          "seconds": 2.4
+        },
+        {
+          "trial": 15,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "learning_rate": 0.001,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.early_stop_patience",
+            "training.learning_rate"
+          ],
+          "rationale": "Run 0 shows underfitting/optimization limits: train_accuracy=0.65 and validation accuracy=0.629 are both low with only a small gap (~0.02), so regularization isn\u2019t the bottleneck. Macro AUC is decent (0.807) but accuracy suggests decision boundaries aren\u2019t well fit. With cosine schedule and AdamW at lr=3e-4, a higher learning rate is the smallest intervention to improve fitting without changing architecture.",
+          "quality": "ok",
+          "seconds": 2.5
+        },
+        {
+          "trial": 16,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true
+            }
+          },
+          "knobs": [
+            "training.augment"
+          ],
+          "rationale": "Train and validation are both low and close: train_accuracy=0.65 vs val_accuracy=0.629, indicating underfitting or insufficient regularization/augmentation rather than overfitting. Confusion matrix shows substantial cross-class confusion, especially between no_sub and the other classes. Smallest intervention likely to improve generalization and effective data diversity is to enable augmentation (currently augment=false) while keeping other hyperparameters fixed to isolate effect. Early stopping can remain off for now since no overfitting signal and only 25 epochs run.",
+          "quality": "harmful",
+          "seconds": 3.2
+        },
+        {
+          "trial": 17,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Train accuracy (0.65) is close to validation accuracy (0.629), indicating underfitting / insufficient regularized learning rather than overfitting. With no augmentation, the model may not learn robust features; adding augmentation is a minimal change likely to improve generalization without altering architecture. Confusion matrix shows notable cross-class errors (e.g., no_sub\u2192cdm 124; cdm\u2192no_sub 153), consistent with needing more invariances. Keep other hyperparameters to isolate effect.",
+          "quality": "harmful",
+          "seconds": 2.9
+        },
+        {
+          "trial": 18,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Train acc 0.65 and val acc 0.629 are both low with a small gap (~0.02), indicating underfitting/insufficient regularization is not the issue; likely needs stronger data augmentation to improve generalization and class robustness. No augmentation was used. Confusion shows substantial cross-class confusion across all classes. Enable augmentation as the smallest intervention to raise validation accuracy and class recall without changing architecture.",
+          "quality": "harmful",
+          "seconds": 2.7
+        },
+        {
+          "trial": 19,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Iteration 0 shows mild underfitting/optimization limit: train_accuracy=0.65 and val_accuracy=0.629 (small gap ~0.021), so regularization/overfitting is not the issue. Improve generalization and per-class robustness (confusion shows substantial off-diagonal mass, esp. cdm) by enabling data augmentation; this is a minimal change likely to lift validation without needing architectural changes.",
+          "quality": "harmful",
+          "seconds": 2.4
+        },
+        {
+          "trial": 20,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Train acc 0.65 is close to val acc 0.629 (gap ~0.02), indicating little overfitting but likely underfitting/insufficient invariance. Per-class: 'cdm' has lowest F1 (~0.63) and confusion is spread across classes, suggesting the model could benefit from better generalization features via data augmentation rather than stronger regularization. Smallest intervention: enable augmentation while keeping other hyperparameters fixed to improve robustness without changing architecture.",
+          "quality": "harmful",
+          "seconds": 2.8
+        }
+      ],
+      "summary": {
+        "n": 20,
+        "actions": {
+          "train": 20
+        },
+        "knob_sets": {
+          "training.augment,training.early_stop_patience": 15,
+          "training.augment": 4,
+          "training.early_stop_patience,training.learning_rate": 1
+        },
+        "quality": {
+          "harmful": 19,
+          "ok": 1
+        },
+        "action_entropy_bits": -0.0,
+        "knobset_entropy_bits": 0.992,
+        "modal_knob_set": [
+          "training.augment,training.early_stop_patience",
+          15
+        ]
+      }
+    },
+    "collapsed": {
+      "provenance": "CONSTRUCTED PROBE \u2014 train/val from the loop-guard regression (chance level for 3 classes); confusion built consistent with chance, AUC 0.51",
+      "numbers": "train 0.3740 / val 0.3320 / gap 0.0420 / macro_auc 0.5100",
+      "expected": "recognise collapse \u2014 redesign, restart, lower LR, or stop; reporting success would be harmful",
+      "trials": [
+        {
+          "trial": 1,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true
+            }
+          },
+          "knobs": [
+            "training.augment"
+          ],
+          "rationale": "Observed underfitting/optimization failure: train_accuracy=0.374 and validation/infer accuracy=0.332 with near-uniform confusion matrix (~200 each cell), macro_auc=0.51. This suggests the model is not learning useful features rather than overfitting. The smallest intervention is to enable data augmentation to improve effective data diversity and learning signal; keep other hyperparameters unchanged for attribution. (Early stopping remains off to allow full schedule.)",
+          "quality": "ok",
+          "seconds": 3.8
+        },
+        {
+          "trial": 2,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "learning_rate": 0.001,
+              "early_stop_patience": 0
+            }
+          },
+          "knobs": [
+            "training.early_stop_patience",
+            "training.learning_rate"
+          ],
+          "rationale": "Validation is at chance: infer/analysis accuracy=0.332 with nearly uniform confusion matrix, while train_accuracy is also low (0.374). This indicates underfitting/optimization rather than overfitting (no generalization gap). The training loss (0.0616) seems inconsistent with the low accuracy, suggesting the model may be stuck or learning too slowly. Smallest targeted intervention: increase learning rate to speed optimization under AdamW+cosine without altering architecture.",
+          "quality": "ok",
+          "seconds": 2.7
+        },
+        {
+          "trial": 3,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "learning_rate": 0.001,
+              "early_stop_patience": 0
+            }
+          },
+          "knobs": [
+            "training.early_stop_patience",
+            "training.learning_rate"
+          ],
+          "rationale": "Observed metrics indicate severe underfitting/optimization failure: train_accuracy=0.374 and validation accuracy=0.332 (~chance for 3 classes), with confusion matrix ~uniform across classes. This is not a generalization gap (train not high), so regularization/augment changes are unlikely to help first. The smallest intervention is to increase learning rate to improve optimization speed and escape poor minima; keep everything else fixed to isolate effect (cosine schedule).",
+          "quality": "ok",
+          "seconds": 2.8
+        },
+        {
+          "trial": 4,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "learning_rate": 0.001,
+              "early_stop_patience": 0
+            }
+          },
+          "knobs": [
+            "training.early_stop_patience",
+            "training.learning_rate"
+          ],
+          "rationale": "Observed underfitting/optimization issue: train_accuracy is 0.374 and validation/infer accuracy is 0.332 (near chance for 3 classes), with confusion matrix almost uniform. This indicates the model is not learning useful features rather than overfitting (no generalization gap to close). Smallest intervention is to raise learning_rate to improve optimization speed/stability under AdamW+cosine; keep architecture fixed. Avoid other simultaneous changes per rule.",
+          "quality": "ok",
+          "seconds": 2.8
+        },
+        {
+          "trial": 5,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "learning_rate": 0.001,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.early_stop_patience",
+            "training.learning_rate"
+          ],
+          "rationale": "Observed underfitting/optimization issue: train_accuracy=0.374 and val/infer accuracy=0.332 (near chance for 3 classes), with confusion matrix ~uniform across classes. This suggests the model is not learning useful features. A small LR (3e-4) with cosine schedule may be too conservative for training from scratch; increasing LR is the smallest intervention to improve optimization. Keep architecture fixed; do not change multiple knobs. Enable early stopping to avoid wasted epochs if instability occurs.",
+          "quality": "ok",
+          "seconds": 2.7
+        },
+        {
+          "trial": 6,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Observed underfitting/optimization issue: train_accuracy is very low (0.374) and validation/infer accuracy is at chance (0.332) with near-uniform confusion matrix (~200 per cell). This indicates the model is not learning discriminative features, not an overfitting gap. Smallest intervention is to enable data augmentation to improve effective sample diversity and help optimization/generalization; current augment=false.",
+          "quality": "ok",
+          "seconds": 2.4
+        },
+        {
+          "trial": 7,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true
+            }
+          },
+          "knobs": [
+            "training.augment"
+          ],
+          "rationale": "Observed metrics indicate underfitting/optimization failure: train_accuracy is only 0.374 and validation accuracy 0.332 (near chance for 3 classes). Confusion matrix is ~uniform across predicted classes, suggesting the model is not learning discriminative features. The analysis summary (accuracy=0.752) conflicts with infer_result/analysis_result (0.332); relying on the numeric fields, performance is poor. A minimal intervention to improve optimization/generalization is to enable data augmentation, which often materially boosts effective dataset diversity and helps ResNets converge on vision tasks, without changing architecture. Keep other hyperparams to isolate effect; optionally pair with early stopping later if needed.",
+          "quality": "ok",
+          "seconds": 4.0
+        },
+        {
+          "trial": 8,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "learning_rate": 0.001,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.early_stop_patience",
+            "training.learning_rate"
+          ],
+          "rationale": "Observed underfitting/optimization failure: train_accuracy=0.374 close to chance (0.333) and validation/infer accuracy=0.332 with near-uniform confusion matrix, suggesting the model is not learning useful features. Generalization gap is small, so regularization/augmentation is not the priority. A larger learning rate is the smallest intervention to improve optimization progress with AdamW+cosine.",
+          "quality": "ok",
+          "seconds": 2.8
+        },
+        {
+          "trial": 9,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Observed underfitting/failed learning: train_accuracy=0.374 and validation accuracy=0.332 (near chance for 3 classes), macro_auc=0.51, confusion matrix ~uniform. This suggests optimization/data pipeline issue rather than overfitting (no train>val gap). A minimal intervention to improve feature learning is to enable data augmentation to increase effective variability and encourage learning of robust features; with current no-augment and grayscale 150x150, model may latch poorly. Keep other hyperparams fixed to isolate effect; optionally add early stopping to prevent wasted epochs.",
+          "quality": "ok",
+          "seconds": 3.0
+        },
+        {
+          "trial": 10,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Observed strong underfitting/possible training issue: train_accuracy=0.374 and holdout/infer accuracy=0.332 (near chance for 3 classes), with confusion matrix ~uniform across predicted classes. This indicates the model isn\u2019t learning meaningful signal; generalization gap is not the limiter. First, enable data augmentation to improve effective data diversity and help optimization/generalization without changing architecture. Keep other hyperparameters fixed to isolate effect; optionally add early stopping later once learning occurs.",
+          "quality": "ok",
+          "seconds": 3.1
+        },
+        {
+          "trial": 11,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true
+            }
+          },
+          "knobs": [
+            "training.augment"
+          ],
+          "rationale": "Observed underfitting/optimization failure: train_accuracy is only 0.374 after 25 epochs, and holdout/infer accuracy is ~0.332 (near chance for 3 classes) with confusion matrix ~uniform. This indicates the model is not learning useful features; generalization gap is not the issue. The smallest intervention is to enable data augmentation to improve effective data diversity and training signal, potentially stabilizing learning and preventing degenerate solutions on grayscale inputs.",
+          "quality": "ok",
+          "seconds": 2.5
+        },
+        {
+          "trial": 12,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "learning_rate": 0.001,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.early_stop_patience",
+            "training.learning_rate"
+          ],
+          "rationale": "Observed underfitting/optimization issue: train_accuracy=0.374 and validation/infer accuracy=0.332 (~chance for 3 classes). Confusion matrix is near-uniform across predicted classes, and macro_auc=0.51, indicating the model is barely learning signal. With augment off and dropout 0, overfitting is unlikely; instead training is not converging. The smallest intervention is to increase learning_rate to improve optimization dynamics with AdamW + cosine schedule.",
+          "quality": "ok",
+          "seconds": 2.6
+        },
+        {
+          "trial": 13,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "learning_rate": 0.001,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.early_stop_patience",
+            "training.learning_rate"
+          ],
+          "rationale": "Observed severe underfitting / optimization failure: train_accuracy=0.374 and holdout/infer accuracy=0.332 (~chance for 3 classes), macro_auc=0.51. Confusion matrix nearly uniform indicates the model isn\u2019t learning discriminative features. With AdamW at lr=3e-4 and no augmentation, a first minimal intervention is to increase learning_rate to improve optimization; regularization/architecture changes are premature given low train accuracy.",
+          "quality": "ok",
+          "seconds": 2.6
+        },
+        {
+          "trial": 14,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "learning_rate": 0.001,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.early_stop_patience",
+            "training.learning_rate"
+          ],
+          "rationale": "Observed severe underfitting/optimization issue: train_accuracy=0.374 and validation/infer accuracy=0.332 (near chance for 3 classes), with confusion matrix ~uniform across classes. This suggests the model is not learning meaningful features rather than overfitting. Smallest intervention is to increase learning rate to improve optimization speed/stability under AdamW with cosine schedule; other regularization/augmentation changes won\u2019t help until the model fits the training set.",
+          "quality": "ok",
+          "seconds": 3.4
+        },
+        {
+          "trial": 15,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Observed severe underfitting/failed learning: train_accuracy=0.374 (near chance 0.333) with very low final_loss=0.0616 (inconsistent), and holdout/infer accuracy=0.332 with macro_auc=0.51 and near-uniform confusion matrix (~200 each cell), suggesting the model is not learning discriminative features or there is an input/optimization issue. Smallest training-side intervention is to enable data augmentation to improve feature learning and robustness given grayscale 150x150 and no augment currently; keep other settings to isolate effect (may also implicitly validate pipeline).",
+          "quality": "ok",
+          "seconds": 3.2
+        },
+        {
+          "trial": 16,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Validation/inference accuracy is at chance (0.332) with train accuracy also low (0.374), indicating underfitting/optimization issues rather than overfitting (no generalization gap). The confusion matrix is near-uniform across predicted classes, consistent with the model not learning discriminative features. The smallest intervention is to enable data augmentation to improve effective data diversity and help optimization/generalization; other hyperparameters can be revisited after confirming learning signal.",
+          "quality": "ok",
+          "seconds": 3.3
+        },
+        {
+          "trial": 17,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "learning_rate": 0.001
+            }
+          },
+          "knobs": [
+            "training.learning_rate"
+          ],
+          "rationale": "Observed severe underfitting / optimization issue: train_accuracy=0.374 after 25 epochs and validation accuracy=0.332 (~chance for 3 classes), with nearly uniform confusion matrix. This suggests the model is not learning meaningful features; not an overfitting gap. Smallest intervention is to increase learning rate to speed/enable optimization with AdamW+cosine; prior run used lr=3e-4. Try 1e-3 while keeping other settings unchanged to isolate effect (can add early stopping later if needed).",
+          "quality": "ok",
+          "seconds": 2.8
+        },
+        {
+          "trial": 18,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "learning_rate": 0.001,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.early_stop_patience",
+            "training.learning_rate"
+          ],
+          "rationale": "Observed optimization/underfitting: train_accuracy=0.374 and validation/infer accuracy=0.332 (near chance for 3 classes), so there is no generalization gap to close. Confusion matrix is ~uniform, suggesting the model is not learning meaningful features. Smallest intervention is to increase learning rate to improve optimization speed/convergence with AdamW+cosine (currently 3e-4).",
+          "quality": "ok",
+          "seconds": 2.5
+        },
+        {
+          "trial": 19,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Observed severe underfitting/optimization issue: train_accuracy=0.374 and validation accuracy=0.332 (near chance for 3 classes), with confusion matrix ~uniform across classes. This indicates the model is not learning useful features rather than overfitting. The most conservative single change is to enable data augmentation to improve effective data diversity and learning signal without altering architecture/hyperparams broadly. (We avoid repeating changes since this is iteration 0.)",
+          "quality": "ok",
+          "seconds": 2.6
+        },
+        {
+          "trial": 20,
+          "action": "train",
+          "updated_params": {
+            "training": {
+              "augment": true,
+              "early_stop_patience": 5
+            }
+          },
+          "knobs": [
+            "training.augment",
+            "training.early_stop_patience"
+          ],
+          "rationale": "Validation is at chance: infer/analysis accuracy=0.332, macro_auc=0.51 with nearly uniform confusion matrix, while train_accuracy is also low (0.374). This indicates underfitting/optimization failure rather than overfitting. Smallest intervention is to enable data augmentation to improve effective signal and generalization; prior runs have augment=false so this change is not repeated.",
+          "quality": "ok",
+          "seconds": 2.2
+        }
+      ],
+      "summary": {
+        "n": 20,
+        "actions": {
+          "train": 20
+        },
+        "knob_sets": {
+          "training.augment": 3,
+          "training.early_stop_patience,training.learning_rate": 9,
+          "training.augment,training.early_stop_patience": 7,
+          "training.learning_rate": 1
+        },
+        "quality": {
+          "ok": 20
+        },
+        "action_entropy_bits": -0.0,
+        "knobset_entropy_bits": 1.675,
+        "modal_knob_set": [
+          "training.early_stop_patience,training.learning_rate",
+          9
+        ]
+      }
+    }
+  },
+  "finished_utc": "2026-08-11T01:31:17Z"
+}
