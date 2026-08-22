@@ -14,8 +14,12 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from dlens.schemas._model_design import BUILDABLE_FAMILIES, ArchFamily, ArchitectureSpec
-from dlens.tools._torch_backends import build_model
+from dlens.schemas._model_design import (  # noqa: E402
+    BUILDABLE_FAMILIES,
+    ArchFamily,
+    ArchitectureSpec,
+)
+from dlens.tools._torch_backends import build_model  # noqa: E402
 
 H = W = 150
 CLASSES = 3
