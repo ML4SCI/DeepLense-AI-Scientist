@@ -1,0 +1,78 @@
+{
+  "epochs": 25,
+  "seed": 0,
+  "n_train": 7200,
+  "n_val": 1800,
+  "results": [
+    {
+      "name": "cnn_deeper_s4",
+      "family": "cnn",
+      "params_m": 1.367,
+      "short_val_accuracy": 0.9033,
+      "short_train_seconds": 285.4,
+      "full_val_accuracy": 0.9038888888888889,
+      "full_train_accuracy": 0.9994,
+      "gap": 0.0955,
+      "macro_auc": 0.9777870370370371,
+      "full_train_seconds": 689.4,
+      "delta": 0.0006
+    },
+    {
+      "name": "resnet_deep_narrow",
+      "family": "resnet",
+      "params_m": 3.277,
+      "short_val_accuracy": 0.8778,
+      "short_train_seconds": 95.4,
+      "full_val_accuracy": 0.8922222222222222,
+      "full_train_accuracy": 0.9514,
+      "gap": 0.0592,
+      "macro_auc": 0.9740004629629629,
+      "full_train_seconds": 225.8,
+      "delta": 0.0144
+    },
+    {
+      "name": "resnet_micro_4stage",
+      "family": "resnet",
+      "params_m": 1.228,
+      "short_val_accuracy": 0.8433,
+      "short_train_seconds": 48.3,
+      "full_val_accuracy": 0.8294444444444444,
+      "full_train_accuracy": 1.0,
+      "gap": 0.1706,
+      "macro_auc": 0.9401,
+      "full_train_seconds": 111.0,
+      "delta": -0.0139
+    },
+    {
+      "name": "equivariant_c4_mid",
+      "family": "equivariant",
+      "params_m": 0.287,
+      "short_val_accuracy": 0.7206,
+      "short_train_seconds": 695.1,
+      "full_val_accuracy": 0.7894444444444444,
+      "full_train_accuracy": 0.7946,
+      "gap": 0.0052,
+      "macro_auc": 0.9204388888888889,
+      "full_train_seconds": 1722.7,
+      "delta": 0.0688
+    }
+  ],
+  "comparison": {
+    "short_budget_ranking": [
+      "cnn_deeper_s4",
+      "resnet_deep_narrow",
+      "resnet_micro_4stage",
+      "equivariant_c4_mid"
+    ],
+    "full_budget_ranking": [
+      "cnn_deeper_s4",
+      "resnet_deep_narrow",
+      "resnet_micro_4stage",
+      "equivariant_c4_mid"
+    ],
+    "kendall_tau": 1.0,
+    "winner_preserved": true,
+    "mean_delta_convolutional": 0.0004,
+    "mean_delta_non_convolutional": 0.0688
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "epochs": 50,
+  "seed": 0,
+  "n_train": 7200,
+  "n_val": 1800,
+  "results": [
+    {
+      "name": "hybrid_conv2_attn6",
+      "family": "hybrid",
+      "params_m": 4.838,
+      "short_val_accuracy": null,
+      "short_train_seconds": null,
+      "full_val_accuracy": 0.8455555555555555,
+      "full_train_accuracy": 0.9044,
+      "gap": 0.0588,
+      "macro_auc": 0.946637037037037,
+      "full_train_seconds": 1067.1,
+      "delta": null
+    },
+    {
+      "name": "vit_small_8b_d192",
+      "family": "vit",
+      "params_m": 3.623,
+      "short_val_accuracy": null,
+      "short_train_seconds": null,
+      "full_val_accuracy": 0.6433333333333333,
+      "full_train_accuracy": 1.0,
+      "gap": 0.3567,
+      "macro_auc": 0.8049421296296296,
+      "full_train_seconds": 709.3,
+      "delta": null
+    },
+    {
+      "name": "mlpmixer_small_8b_d256",
+      "family": "mlpmixer",
+      "params_m": 2.252,
+      "short_val_accuracy": null,
+      "short_train_seconds": null,
+      "full_val_accuracy": 0.6455555555555555,
+      "full_train_accuracy": 1.0,
+      "gap": 0.3544,
+      "macro_auc": 0.8197259259259259,
+      "full_train_seconds": 972.4,
+      "delta": null
+    }
+  ]
+}

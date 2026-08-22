@@ -1,0 +1,98 @@
+{
+  "stage": "tune",
+  "winner": {
+    "name": "cnn_s4_mid_w224",
+    "family": "cnn",
+    "input_shape": [
+      150,
+      150
+    ],
+    "channels": 1,
+    "num_classes": 3,
+    "depths": [
+      3,
+      3,
+      3,
+      2
+    ],
+    "widths": [
+      32,
+      64,
+      128,
+      224
+    ],
+    "physics_informed": false,
+    "rationale": ""
+  },
+  "search_val_accuracy": 0.9138888888888889,
+  "trajectory": [
+    {
+      "iteration": 0,
+      "train_accuracy": 0.9985,
+      "val_accuracy": 0.9027777777777778,
+      "gap": 0.0957,
+      "macro_auc": 0.9807856481481482,
+      "planner_action": "train",
+      "planner_rationale": "Train acc is extremely high (0.9985) while validation accuracy is notably lower (0.9028), indicating overfitting / limited generalization. No augmentation is currently used, so the smallest targeted intervention is to enable data augmentation to improve robustness and especially help the weakest class ('cdm' recall 0.812 with many cdm\u2192axion errors: 75). Keep other settings fixed to isolate effect; optionally add early stopping later if needed.",
+      "planner_updated_params": {
+        "training": {
+          "augment": true
+        }
+      }
+    },
+    {
+      "iteration": 1,
+      "train_accuracy": 0.9313,
+      "val_accuracy": 0.9222222222222223,
+      "gap": 0.0091,
+      "macro_auc": 0.9889921296296297,
+      "planner_action": "report",
+      "planner_rationale": "[loop guard] train/val gap 0.009 <= threshold 0.06 \u2014 gap closed.",
+      "planner_updated_params": {}
+    }
+  ],
+  "best_iteration": 1,
+  "best_val_accuracy": 0.9222222222222223,
+  "test": {
+    "n_test": 1800,
+    "test_accuracy": 0.9277777777777778,
+    "test_macro_auc": 0.9875199074074074,
+    "per_class": {
+      "no_sub": {
+        "precision": 0.9202,
+        "recall": 1.0,
+        "f1": 0.9585,
+        "support": 600.0
+      },
+      "cdm": {
+        "precision": 0.9615,
+        "recall": 0.8317,
+        "f1": 0.8919,
+        "support": 600.0
+      },
+      "axion": {
+        "precision": 0.9078,
+        "recall": 0.9517,
+        "f1": 0.9292,
+        "support": 600.0
+      }
+    },
+    "confusion_matrix": [
+      [
+        600,
+        0,
+        0
+      ],
+      [
+        43,
+        499,
+        58
+      ],
+      [
+        9,
+        20,
+        571
+      ]
+    ]
+  }
+}
