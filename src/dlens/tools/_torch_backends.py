@@ -166,10 +166,10 @@ class TorchTrainBackend:
     ) -> None:
         self._output_root = output_root
         self._device_override = device
-        # Training seed. Default 0 reproduces every single-seed run on this branch;
-        # vary it for replication, where the spread across seeds IS the
-        # measurement. Mirrors exp/multi-seed exactly so results are comparable
-        # with the multi-seed pilot's resnet34 figures.
+        # Training seed. Default 0 reproduces the original single-seed runs (incl.
+        # the definitive paper run and the broadened architecture search); vary it
+        # for multi-seed replication, where the spread across seeds IS the
+        # measurement.
         self._seed = seed
 
     @property
@@ -193,6 +193,8 @@ class TorchTrainBackend:
         x = (x - mean) / std
 
         # Early stopping: hold out a seeded 10% slice of TRAIN (never touches val/).
+        # Tied to the same seed, so a given seed pairs identical splits across the
+        # architectures being compared.
         es_x = es_y = None
         if config.early_stop_patience > 0:
             rng = np.random.default_rng(self._seed)
