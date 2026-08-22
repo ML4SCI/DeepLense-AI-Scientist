@@ -30,6 +30,8 @@ class ArchFamily(str, Enum):
     RESNET = "resnet"
     VIT = "vit"
     EQUIVARIANT = "equivariant"
+    MLPMIXER = "mlpmixer"
+    HYBRID = "hybrid"
 
 
 class DatasetCharacteristics(BaseModel):
@@ -47,8 +49,19 @@ class DatasetCharacteristics(BaseModel):
     notes: str = Field(default="", description="Free-form notes (e.g. class names, SNR).")
 
 
-# Families the torch backend can actually construct and train.
-BUILDABLE_FAMILIES = {ArchFamily.RESNET, ArchFamily.CNN}
+# Families the torch backend can actually construct and train. Broadened
+# 2026-08-13: the search could previously only propose convnets, which makes an
+# "unbiased search" claim over that space uninformative about whether convnets
+# are the right answer. Every family listed here is covered by an offline build
+# AND train test (tests/test_arch_families.py).
+BUILDABLE_FAMILIES = {
+    ArchFamily.RESNET,
+    ArchFamily.CNN,
+    ArchFamily.VIT,
+    ArchFamily.EQUIVARIANT,
+    ArchFamily.MLPMIXER,
+    ArchFamily.HYBRID,
+}
 
 
 class ArchitectureSpec(BaseModel):
@@ -67,10 +80,22 @@ class ArchitectureSpec(BaseModel):
     num_classes: Optional[int] = Field(default=None, description="Output classes, if classification.")
     depths: Optional[list[int]] = Field(
         default=None,
-        description="Blocks (resnet) or convs (cnn) per stage; 2-4 stages, 1-6 each.",
+        description=(
+            "Per-stage structure; 2-4 stages, each 1-6. Meaning depends on family: "
+            "resnet = residual blocks per stage; cnn = 3x3 convs per stage; "
+            "equivariant = group-conv blocks per stage; vit/mlpmixer = the SUM is "
+            "the number of transformer/mixer blocks; hybrid = conv stage depths "
+            "with the LAST entry the number of attention blocks."
+        ),
     )
     widths: Optional[list[int]] = Field(
-        default=None, description="Channels per stage (8-1024); same length as depths."
+        default=None,
+        description=(
+            "Per-stage size (8-1024), same length as depths. resnet/cnn/equivariant "
+            "= channels per stage; vit/mlpmixer = the LAST entry is the embedding "
+            "dimension; hybrid = conv channels with the LAST entry the attention "
+            "dimension."
+        ),
     )
     physics_informed: bool = Field(
         default=False, description="Whether physics priors (e.g. equivariance) are used."

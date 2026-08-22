@@ -1,0 +1,18 @@
+=== TUNING cnn_s4_mid_w224 (search val 0.9139) ===
+
+=== iteration 0: arch=cnn_s4_mid_w224 dropout=0.0 augment=False wd=0.0001 epochs=25 es_patience=0 ===
+    train=0.9985  val=0.9028  gap=0.0957  auc=0.9808
+    planner[react]: train {'training': {'augment': True}}
+    reasoning: Train acc is extremely high (0.9985) while validation accuracy is notably lower (0.9028), indicating overfitting / limited generalization. No augmentation is currently used, so the smallest targeted intervention is to enable data augmentation to improve robustness and especially help the weakest cla
+
+=== iteration 1: arch=cnn_s4_mid_w224 dropout=0.0 augment=True wd=0.0001 epochs=25 es_patience=0 ===
+    train=0.9313  val=0.9222  gap=0.0091  auc=0.9890
+
+  trajectory:
+    it0: train=0.9985 val=0.9028 gap=+0.0957 -> train
+    it1: train=0.9313 val=0.9222 gap=+0.0091 -> report
+
+  best iteration : it1 val=0.9222
+  HELD-OUT TEST  : acc=0.9278 auc=0.9875 (n=1800, evaluated once)
+
+artifacts -> docs/broader_search/tuning.json

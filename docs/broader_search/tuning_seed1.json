@@ -1,0 +1,99 @@
+{
+  "stage": "tune",
+  "seed": 1,
+  "winner": {
+    "name": "cnn_s4_mid_w224",
+    "family": "cnn",
+    "input_shape": [
+      150,
+      150
+    ],
+    "channels": 1,
+    "num_classes": 3,
+    "depths": [
+      3,
+      3,
+      3,
+      2
+    ],
+    "widths": [
+      32,
+      64,
+      128,
+      224
+    ],
+    "physics_informed": false,
+    "rationale": ""
+  },
+  "search_val_accuracy": 0.9138888888888889,
+  "trajectory": [
+    {
+      "iteration": 0,
+      "train_accuracy": 0.9986,
+      "val_accuracy": 0.9005555555555556,
+      "gap": 0.098,
+      "macro_auc": 0.9790898148148148,
+      "planner_action": "train",
+      "planner_rationale": "Train acc is near-saturated (0.9986) while validation accuracy is 0.9006, indicating a large generalization gap/overfitting. No augmentation and dropout=0.0; adding data augmentation is the smallest intervention likely to improve robustness and class boundary generalization (notably cdm recall 0.822 with many cdm\u2192axion confusions: 64).",
+      "planner_updated_params": {
+        "training": {
+          "augment": true
+        }
+      }
+    },
+    {
+      "iteration": 1,
+      "train_accuracy": 0.9311,
+      "val_accuracy": 0.9255555555555556,
+      "gap": 0.0055,
+      "macro_auc": 0.9889782407407407,
+      "planner_action": "report",
+      "planner_rationale": "[loop guard] train/val gap 0.006 <= threshold 0.06 \u2014 gap closed.",
+      "planner_updated_params": {}
+    }
+  ],
+  "best_iteration": 1,
+  "best_val_accuracy": 0.9255555555555556,
+  "test": {
+    "n_test": 1800,
+    "test_accuracy": 0.9344444444444444,
+    "test_macro_auc": 0.9891421296296296,
+    "per_class": {
+      "no_sub": {
+        "precision": 0.9494,
+        "recall": 1.0,
+        "f1": 0.974,
+        "support": 600.0
+      },
+      "cdm": {
+        "precision": 0.9519,
+        "recall": 0.8583,
+        "f1": 0.9027,
+        "support": 600.0
+      },
+      "axion": {
+        "precision": 0.9043,
+        "recall": 0.945,
+        "f1": 0.9242,
+        "support": 600.0
+      }
+    },
+    "confusion_matrix": [
+      [
+        600,
+        0,
+        0
+      ],
+      [
+        25,
+        515,
+        60
+      ],
+      [
+        7,
+        26,
+        567
+      ]
+    ]
+  }
+}

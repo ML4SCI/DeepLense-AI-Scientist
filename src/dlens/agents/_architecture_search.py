@@ -3,11 +3,19 @@
 
 The design discussed with Michael (2026-07-25):
 
-    GENERATE  ~N candidate architectures (LLM, structured ArchitectureSpecs)
-    JUDGE     LLM-as-judge ranks them from the specs alone; take the top-k
-    RUN       train the top-k for REAL but short (cheap ranking signal)
-    PRUNE     keep the best by REAL validation metrics (code-side, not the LLM)
-    (refine)  optionally one more shallow round: variants of the winner -> train -> prune
+    for round r in 1..R:
+        GENERATE  ~N candidate architectures (LLM, structured ArchitectureSpecs);
+                  from round 2 on, the prompt carries EVERY measured result so
+                  far, so later rounds are informed rather than blind resampling
+        JUDGE     LLM-as-judge ranks them from the specs alone; take the top-k
+        RUN       train the top-k for REAL but short (cheap ranking signal)
+        PRUNE     keep the best by REAL validation metrics (code-side, not the LLM)
+    carry the best architecture seen across all rounds
+
+Restructured 2026-08-13 at the mentor's request. It previously ran one full round
+plus a shallow refinement round that could only produce variants of the winner;
+the winner now re-enters the full generation stage, so a later round is free to
+leave the incumbent's neighbourhood entirely.
 
 The winner then goes to the EXISTING closed-loop hyperparameter tuner
 (``ExperimentLoop``) — tree search picks the architecture, the ReAct loop tunes it.
@@ -26,7 +34,11 @@ from pydantic import BaseModel, Field
 
 from dlens.agents._base import BaseAgentConfig, DLensBaseAgent, OutputSchema
 from dlens.config import build_llm
-from dlens.prompts._arch_search import ARCH_GENERATOR_PROMPT, ARCH_JUDGE_PROMPT
+from dlens.prompts._arch_search import (
+    ARCH_GENERATOR_ITERATIVE_SUFFIX,
+    ARCH_GENERATOR_PROMPT,
+    ARCH_JUDGE_PROMPT,
+)
 from dlens.schemas._downstream import DatasetRef
 from dlens.schemas._model_design import ArchitectureSpec, TrainingConfig
 from dlens.tools._analysis import compute_analysis
@@ -58,6 +70,25 @@ class CandidateEval(BaseModel):
     train_seconds: float
 
 
+class RoundRecord(BaseModel):
+    """Everything one search round did, for the write-up and for auditing."""
+
+    round_index: int = Field(description="1-based round number.")
+    proposed: list[ArchitectureSpec] = Field(description="Candidates generated this round.")
+    dropped_unbuildable: list[str] = Field(default_factory=list)
+    dropped_duplicate: list[str] = Field(
+        default_factory=list, description="Structurally identical to something already tried."
+    )
+    judge_ranking: list[int] = Field(description="Judge order over this round's kept candidates.")
+    judge_reasoning: str = ""
+    shortlist: list[str] = Field(default_factory=list, description="Names the judge promoted.")
+    evals: list["CandidateEval"] = Field(default_factory=list)
+    round_winner: str = ""
+    generate_s: float = 0.0
+    judge_s: float = 0.0
+    train_s: float = 0.0
+
+
 class ArchSearchResult(BaseModel):
     """Full, demo-friendly log of one architecture search."""
 
@@ -66,6 +97,9 @@ class ArchSearchResult(BaseModel):
     judge_ranking: list[int]
     judge_reasoning: str
     rounds: list[list[CandidateEval]]
+    round_records: list[RoundRecord] = Field(
+        default_factory=list, description="Per-round detail; `rounds` is the eval-only view."
+    )
     winner: ArchitectureSpec
     winner_eval: CandidateEval
     timings: dict[str, float]
@@ -111,7 +145,12 @@ def _params_m(spec: ArchitectureSpec) -> float:
 
 
 class ArchitectureSearch:
-    """Generate -> judge -> short-train -> prune (optionally refine once)."""
+    """Iterative beam search: R x (generate -> judge -> short-train -> prune).
+
+    The winner does not merely seed a refinement round; every round after the
+    first re-enters full generation with all measured results so far, so the
+    search can abandon the incumbent's neighbourhood entirely.
+    """
 
     name = "tree-search"
 
@@ -124,8 +163,9 @@ class ArchitectureSearch:
         infer_backend: InferBackend,
         num_candidates: int = 10,
         top_k: int = 4,
-        refine_variants: int = 3,
-        rounds: int = 2,
+        refine_variants: int = 3,   # deprecated: the shallow refinement round is
+                                    # gone; kept so existing call sites still work
+        rounds: int = 3,
         candidate_epochs: int = 4,
     ) -> None:
         self.generator = generator or ArchitectureGenerator()
@@ -134,7 +174,7 @@ class ArchitectureSearch:
         self.infer_backend = infer_backend
         self.num_candidates = num_candidates
         self.top_k = top_k
-        self.refine_variants = refine_variants
+        self.refine_variants = refine_variants  # unused; see __init__ signature
         self.rounds = max(1, rounds)
         self.candidate_epochs = candidate_epochs
 
@@ -142,91 +182,123 @@ class ArchitectureSearch:
         self, *, task_description: str, train_ref: DatasetRef, val_ref: DatasetRef
     ) -> ArchSearchResult:
         timings: dict[str, float] = {}
-
-        # --- GENERATE ---
-        t0 = time.monotonic()
-        gen = await self.generator.arun(
-            f"{task_description}\nPropose exactly {self.num_candidates} candidates."
-        )
-        proposed: list[ArchitectureSpec] = gen.output.candidates
-        timings["generate_s"] = round(time.monotonic() - t0, 1)
-
-        # --- FILTER (code-side buildability) ---
-        dropped = [c.name for c in proposed if not c.is_buildable()]
-        candidates = [c for c in proposed if c.is_buildable()]
-        print(f"[search] generated {len(proposed)} candidates "
-              f"({len(dropped)} dropped as unbuildable) in {timings['generate_s']}s", flush=True)
-        for i, c in enumerate(candidates):
-            print(f"    [{i}] {c.name:<18} {c.family.value:<7} depths={c.depths} "
-                  f"widths={c.widths} (~{_params_m(c)}M params)", flush=True)
-
-        # --- JUDGE ---
-        t0 = time.monotonic()
-        listing = "\n".join(
-            f"[{i}] name={c.name} family={c.family.value} depths={c.depths} "
-            f"widths={c.widths} params={_params_m(c)}M"
-            for i, c in enumerate(candidates)
-        )
-        verdict = await self.judge.arun(
-            f"{task_description}\n\nCandidates:\n{listing}\n\nRank all candidate indices."
-        )
-        ranking = [i for i in verdict.output.ranking if 0 <= i < len(candidates)]
-        timings["judge_s"] = round(time.monotonic() - t0, 1)
-        top = [candidates[i] for i in ranking[: self.top_k]]
-        print(f"[search] judge ranking: {ranking} -> top-{self.top_k}: "
-              f"{[c.name for c in top]} ({timings['judge_s']}s)", flush=True)
-        print(f"    judge reasoning: {verdict.output.reasoning[:300]}", flush=True)
-
-        # --- RUN + PRUNE (round 1) ---
+        records: list[RoundRecord] = []
         rounds_evals: list[list[CandidateEval]] = []
-        evals = await self._evaluate(top, train_ref, val_ref, timings, tag="round1")
-        rounds_evals.append(evals)
-        best_spec, best_eval = self._best(top, evals)
-        print(f"[search] round-1 winner: {best_eval.name} "
-              f"(val={best_eval.val_accuracy:.4f})", flush=True)
 
-        # --- optional shallow refinement round ---
-        if self.rounds > 1 and self.refine_variants > 0:
+        # Everything measured so far, in proposal order, so round r>1 can be told
+        # what has already been tried and how it scored.
+        history: list[tuple[ArchitectureSpec, CandidateEval]] = []
+        seen: set[tuple] = set()
+        all_proposed: list[ArchitectureSpec] = []
+        all_dropped: list[str] = []
+        best_spec: ArchitectureSpec | None = None
+        best_eval: CandidateEval | None = None
+
+        for rnd in range(1, self.rounds + 1):
+            # --- GENERATE ---
+            prompt = f"{task_description}\nPropose exactly {self.num_candidates} candidates."
+            if history:
+                table = "\n".join(
+                    f"- {sp.name} (family={sp.family.value}, depths={sp.depths}, "
+                    f"widths={sp.widths}, {ev.params_m}M params): "
+                    f"val_accuracy={ev.val_accuracy:.4f}, train_accuracy={ev.train_accuracy:.4f}, "
+                    f"gap={ev.gap:+.4f}"
+                    for sp, ev in history
+                )
+                prompt = f"{task_description}" + ARCH_GENERATOR_ITERATIVE_SUFFIX.format(
+                    history=table, n=self.num_candidates
+                )
             t0 = time.monotonic()
-            table = "\n".join(
-                f"{e.name}: val_accuracy={e.val_accuracy:.4f} gap={e.gap:.4f} "
-                f"params={e.params_m}M" for e in evals
-            )
-            gen2 = await self.generator.arun(
-                f"{task_description}\n\nShort-training results of the first round:\n{table}\n\n"
-                f"The current best is '{best_eval.name}'. Propose exactly "
-                f"{self.refine_variants} VARIATIONS of that architecture (adjust depth/"
-                f"width/capacity around it) that might generalize better."
-            )
-            # Dedupe: drop variants structurally identical to anything already evaluated
-            # (seeded training would just reproduce the same numbers).
-            seen = {(c.family, tuple(c.depths or []), tuple(c.widths or [])) for c in top}
-            variants = []
-            for c in gen2.output.candidates:
-                key = (c.family, tuple(c.depths or []), tuple(c.widths or []))
-                if c.is_buildable() and key not in seen:
-                    seen.add(key)
-                    variants.append(c)
-            variants = variants[: self.refine_variants]
-            timings["refine_generate_s"] = round(time.monotonic() - t0, 1)
-            print(f"[search] refinement variants: {[c.name for c in variants]} "
-                  f"({timings['refine_generate_s']}s)", flush=True)
-            if variants:
-                evals2 = await self._evaluate(variants, train_ref, val_ref, timings, tag="round2")
-                rounds_evals.append(evals2)
-                cand_all = [best_spec] + variants
-                eval_all = [best_eval] + evals2
-                best_spec, best_eval = self._best(cand_all, eval_all)
-                print(f"[search] final winner after refinement: {best_eval.name} "
-                      f"(val={best_eval.val_accuracy:.4f})", flush=True)
+            gen = await self.generator.arun(prompt)
+            generate_s = round(time.monotonic() - t0, 1)
+            timings[f"round{rnd}_generate_s"] = generate_s
+            proposed = gen.output.candidates
+            all_proposed.extend(proposed)
 
-        timings["search_total_s"] = round(sum(v for k, v in timings.items() if k != "search_total_s"), 1)
+            # --- FILTER: buildable, then structurally novel ---
+            dropped_unbuildable = [c.name for c in proposed if not c.is_buildable()]
+            dropped_duplicate: list[str] = []
+            candidates: list[ArchitectureSpec] = []
+            for c in proposed:
+                if not c.is_buildable():
+                    continue
+                key = (c.family, tuple(c.depths or []), tuple(c.widths or []))
+                if key in seen:
+                    dropped_duplicate.append(c.name)
+                    continue
+                seen.add(key)
+                candidates.append(c)
+            all_dropped.extend(dropped_unbuildable)
+
+            print(f"\n[search] === ROUND {rnd}/{self.rounds} === generated "
+                  f"{len(proposed)} ({len(dropped_unbuildable)} unbuildable, "
+                  f"{len(dropped_duplicate)} duplicate) in {generate_s}s", flush=True)
+            for i, c in enumerate(candidates):
+                print(f"    [{i}] {c.name:<34} {c.family.value:<12} depths={c.depths} "
+                      f"widths={c.widths} (~{_params_m(c)}M)", flush=True)
+            if not candidates:
+                print("[search] no usable candidates this round; stopping early", flush=True)
+                break
+
+            # --- JUDGE ---
+            t0 = time.monotonic()
+            listing = "\n".join(
+                f"[{i}] name={c.name} family={c.family.value} depths={c.depths} "
+                f"widths={c.widths} params={_params_m(c)}M"
+                for i, c in enumerate(candidates)
+            )
+            verdict = await self.judge.arun(
+                f"{task_description}\n\nCandidates:\n{listing}\n\nRank all candidate indices."
+            )
+            ranking = [i for i in verdict.output.ranking if 0 <= i < len(candidates)]
+            # The judge may omit indices; append anything it left out so the
+            # shortlist is always well defined.
+            ranking += [i for i in range(len(candidates)) if i not in ranking]
+            judge_s = round(time.monotonic() - t0, 1)
+            timings[f"round{rnd}_judge_s"] = judge_s
+            top = [candidates[i] for i in ranking[: self.top_k]]
+            print(f"[search] judge ranking: {ranking} -> top-{self.top_k}: "
+                  f"{[c.name for c in top]} ({judge_s}s)", flush=True)
+            print(f"    judge reasoning: {verdict.output.reasoning[:300]}", flush=True)
+
+            # --- RUN + PRUNE ---
+            t0 = time.monotonic()
+            evals = await self._evaluate(top, train_ref, val_ref, timings, tag=f"round{rnd}")
+            train_s = round(time.monotonic() - t0, 1)
+            rounds_evals.append(evals)
+            history.extend(zip(top, evals))
+
+            round_spec, round_eval = self._best(top, evals)
+            if best_eval is None or round_eval.val_accuracy > best_eval.val_accuracy:
+                best_spec, best_eval = round_spec, round_eval
+            print(f"[search] round-{rnd} winner: {round_eval.name} "
+                  f"(val={round_eval.val_accuracy:.4f}); best so far: {best_eval.name} "
+                  f"(val={best_eval.val_accuracy:.4f})", flush=True)
+
+            records.append(RoundRecord(
+                round_index=rnd, proposed=proposed,
+                dropped_unbuildable=dropped_unbuildable, dropped_duplicate=dropped_duplicate,
+                judge_ranking=ranking, judge_reasoning=verdict.output.reasoning,
+                shortlist=[c.name for c in top], evals=evals,
+                round_winner=round_eval.name,
+                generate_s=generate_s, judge_s=judge_s, train_s=train_s,
+            ))
+
+        if best_spec is None or best_eval is None:
+            raise RuntimeError("architecture search produced no evaluable candidate")
+
+        timings["search_total_s"] = round(
+            sum(v for k, v in timings.items() if k != "search_total_s"), 1
+        )
+        print(f"\n[search] FINAL winner after {len(records)} round(s): {best_eval.name} "
+              f"(val={best_eval.val_accuracy:.4f}, {best_eval.params_m}M params)", flush=True)
         return ArchSearchResult(
-            proposed=proposed,
-            dropped_unbuildable=dropped,
-            judge_ranking=ranking,
-            judge_reasoning=verdict.output.reasoning,
+            proposed=all_proposed,
+            dropped_unbuildable=all_dropped,
+            judge_ranking=records[0].judge_ranking if records else [],
+            judge_reasoning=records[0].judge_reasoning if records else "",
             rounds=rounds_evals,
+            round_records=records,
             winner=best_spec,
             winner_eval=best_eval,
             timings=timings,
