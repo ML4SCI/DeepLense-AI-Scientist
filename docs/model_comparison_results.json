@@ -1,0 +1,507 @@
+{
+  "sandbox": "docker",
+  "max_retries": 3,
+  "models": {
+    "gpt-5.2": {
+      "Model_I_no_sub": {
+        "attempts": [
+          {
+            "n": 1,
+            "schema_ok": true,
+            "gen_s": 14.4,
+            "parses": true,
+            "exec_s": 1.1,
+            "ran": true,
+            "validated": true
+          }
+        ],
+        "ok": true,
+        "image_shape": [
+          150,
+          150
+        ],
+        "n_attempts": 1,
+        "wall_s": 15.5
+      },
+      "Model_I_cdm": {
+        "attempts": [
+          {
+            "n": 1,
+            "schema_ok": true,
+            "gen_s": 16.6,
+            "parses": true,
+            "exec_s": 1.1,
+            "ran": true,
+            "validated": true
+          }
+        ],
+        "ok": true,
+        "image_shape": [
+          150,
+          150
+        ],
+        "n_attempts": 1,
+        "wall_s": 17.6
+      },
+      "Model_I_axion": {
+        "attempts": [
+          {
+            "n": 1,
+            "schema_ok": true,
+            "gen_s": 11.4,
+            "parses": true,
+            "exec_s": 0.9,
+            "ran": false,
+            "validated": false,
+            "error": "docker run failed or produced no output | ImportError: cannot import name 'CDM' from 'pyHalo.preset_models' (/usr/local/lib/python3.10/site-packages/pyHalo/preset_models.py)"
+          },
+          {
+            "n": 2,
+            "schema_ok": true,
+            "gen_s": 16.2,
+            "parses": true,
+            "exec_s": 1.0,
+            "ran": true,
+            "validated": true
+          }
+        ],
+        "ok": true,
+        "image_shape": [
+          150,
+          150
+        ],
+        "n_attempts": 2,
+        "wall_s": 29.4
+      },
+      "Model_II_no_sub": {
+        "attempts": [
+          {
+            "n": 1,
+            "schema_ok": true,
+            "gen_s": 5.1,
+            "parses": true,
+            "exec_s": 0.9,
+            "ran": false,
+            "validated": false,
+            "error": "docker run failed or produced no output | ImportError: cannot import name 'CDM' from 'pyHalo.preset_models' (/usr/local/lib/python3.10/site-packages/pyHalo/preset_models.py)"
+          },
+          {
+            "n": 2,
+            "schema_ok": true,
+            "gen_s": 25.6,
+            "parses": true,
+            "exec_s": 0.9,
+            "ran": true,
+            "validated": true
+          }
+        ],
+        "ok": true,
+        "image_shape": [
+          64,
+          64
+        ],
+        "n_attempts": 2,
+        "wall_s": 32.5
+      },
+      "Model_II_cdm": {
+        "attempts": [
+          {
+            "n": 1,
+            "schema_ok": true,
+            "gen_s": 5.0,
+            "parses": true,
+            "exec_s": 0.9,
+            "ran": false,
+            "validated": false,
+            "error": "docker run failed or produced no output | ImportError: cannot import name 'CDM' from 'pyHalo.preset_models' (/usr/local/lib/python3.10/site-packages/pyHalo/preset_models.py)"
+          },
+          {
+            "n": 2,
+            "schema_ok": true,
+            "gen_s": 22.2,
+            "parses": true,
+            "exec_s": 0.9,
+            "ran": true,
+            "validated": true
+          }
+        ],
+        "ok": true,
+        "image_shape": [
+          64,
+          64
+        ],
+        "n_attempts": 2,
+        "wall_s": 29.0
+      },
+      "Model_II_axion": {
+        "attempts": [
+          {
+            "n": 1,
+            "schema_ok": true,
+            "gen_s": 7.6,
+            "parses": true,
+            "exec_s": 0.8,
+            "ran": false,
+            "validated": false,
+            "error": "docker run failed or produced no output | ImportError: cannot import name 'CDM' from 'pyHalo.preset_models' (/usr/local/lib/python3.10/site-packages/pyHalo/preset_models.py)"
+          },
+          {
+            "n": 2,
+            "schema_ok": true,
+            "gen_s": 21.9,
+            "parses": true,
+            "exec_s": 1.0,
+            "ran": true,
+            "validated": true
+          }
+        ],
+        "ok": true,
+        "image_shape": [
+          64,
+          64
+        ],
+        "n_attempts": 2,
+        "wall_s": 31.3
+      },
+      "Model_III_no_sub": {
+        "attempts": [
+          {
+            "n": 1,
+            "schema_ok": true,
+            "gen_s": 4.5,
+            "parses": true,
+            "exec_s": 0.9,
+            "ran": false,
+            "validated": false,
+            "error": "docker run failed or produced no output | ImportError: cannot import name 'CDM' from 'pyHalo.preset_models' (/usr/local/lib/python3.10/site-packages/pyHalo/preset_models.py)"
+          },
+          {
+            "n": 2,
+            "schema_ok": true,
+            "gen_s": 16.0,
+            "parses": true,
+            "exec_s": 1.0,
+            "ran": true,
+            "validated": true
+          }
+        ],
+        "ok": true,
+        "image_shape": [
+          100,
+          100
+        ],
+        "n_attempts": 2,
+        "wall_s": 22.4
+      },
+      "Model_III_cdm": {
+        "attempts": [
+          {
+            "n": 1,
+            "schema_ok": true,
+            "gen_s": 4.1,
+            "parses": true,
+            "exec_s": 0.9,
+            "ran": false,
+            "validated": false,
+            "error": "docker run failed or produced no output | ImportError: cannot import name 'CDM' from 'pyHalo.preset_models' (/usr/local/lib/python3.10/site-packages/pyHalo/preset_models.py)"
+          },
+          {
+            "n": 2,
+            "schema_ok": true,
+            "gen_s": 24.5,
+            "parses": true,
+            "exec_s": 1.0,
+            "ran": true,
+            "validated": true
+          }
+        ],
+        "ok": true,
+        "image_shape": [
+          101,
+          101
+        ],
+        "n_attempts": 2,
+        "wall_s": 30.4
+      },
+      "Model_III_axion": {
+        "attempts": [
+          {
+            "n": 1,
+            "schema_ok": true,
+            "gen_s": 7.1,
+            "parses": true,
+            "exec_s": 0.9,
+            "ran": false,
+            "validated": false,
+            "error": "docker run failed or produced no output | ImportError: cannot import name 'CDM' from 'pyHalo.preset_models' (/usr/local/lib/python3.10/site-packages/pyHalo/preset_models.py)"
+          },
+          {
+            "n": 2,
+            "schema_ok": true,
+            "gen_s": 16.4,
+            "parses": true,
+            "exec_s": 1.1,
+            "ran": true,
+            "validated": true
+          }
+        ],
+        "ok": true,
+        "image_shape": [
+          100,
+          100
+        ],
+        "n_attempts": 2,
+        "wall_s": 25.6
+      }
+    },
+    "gpt-5.6-luna (responses API)": {
+      "Model_I_no_sub": {
+        "attempts": [
+          {
+            "n": 1,
+            "schema_ok": true,
+            "gen_s": 7.3,
+            "parses": true,
+            "exec_s": 1.0,
+            "ran": true,
+            "validated": true
+          }
+        ],
+        "ok": true,
+        "image_shape": [
+          150,
+          150
+        ],
+        "n_attempts": 1,
+        "wall_s": 8.3
+      },
+      "Model_I_cdm": {
+        "attempts": [
+          {
+            "n": 1,
+            "schema_ok": true,
+            "gen_s": 8.0,
+            "parses": true,
+            "exec_s": 1.0,
+            "ran": true,
+            "validated": true
+          }
+        ],
+        "ok": true,
+        "image_shape": [
+          150,
+          150
+        ],
+        "n_attempts": 1,
+        "wall_s": 9.0
+      },
+      "Model_I_axion": {
+        "attempts": [
+          {
+            "n": 1,
+            "schema_ok": true,
+            "gen_s": 12.9,
+            "parses": true,
+            "exec_s": 1.0,
+            "ran": true,
+            "validated": true
+          }
+        ],
+        "ok": true,
+        "image_shape": [
+          150,
+          150
+        ],
+        "n_attempts": 1,
+        "wall_s": 13.9
+      },
+      "Model_II_no_sub": {
+        "attempts": [
+          {
+            "n": 1,
+            "schema_ok": true,
+            "gen_s": 3.3,
+            "parses": true,
+            "exec_s": 0.3,
+            "ran": false,
+            "validated": false,
+            "error": "docker run failed or produced no output | ModuleNotFoundError: No module named 'deeplens'"
+          },
+          {
+            "n": 2,
+            "schema_ok": true,
+            "gen_s": 15.8,
+            "parses": true,
+            "exec_s": 1.0,
+            "ran": true,
+            "validated": true
+          }
+        ],
+        "ok": true,
+        "image_shape": [
+          64,
+          64
+        ],
+        "n_attempts": 2,
+        "wall_s": 20.4
+      },
+      "Model_II_cdm": {
+        "attempts": [
+          {
+            "n": 1,
+            "schema_ok": true,
+            "gen_s": 2.9,
+            "parses": true,
+            "exec_s": 0.4,
+            "ran": false,
+            "validated": false,
+            "error": "docker run failed or produced no output | ModuleNotFoundError: No module named 'deeplens'"
+          },
+          {
+            "n": 2,
+            "schema_ok": true,
+            "gen_s": 13.6,
+            "parses": true,
+            "exec_s": 0.9,
+            "ran": true,
+            "validated": true
+          }
+        ],
+        "ok": true,
+        "image_shape": [
+          64,
+          64
+        ],
+        "n_attempts": 2,
+        "wall_s": 17.8
+      },
+      "Model_II_axion": {
+        "attempts": [
+          {
+            "n": 1,
+            "schema_ok": true,
+            "gen_s": 3.5,
+            "parses": true,
+            "exec_s": 0.8,
+            "ran": false,
+            "validated": false,
+            "error": "docker run failed or produced no output | ImportError: cannot import name 'CDM' from 'pyHalo.preset_models' (/usr/local/lib/python3.10/site-packages/pyHalo/preset_models.py)"
+          },
+          {
+            "n": 2,
+            "schema_ok": true,
+            "gen_s": 38.3,
+            "parses": true,
+            "exec_s": 1.1,
+            "ran": true,
+            "validated": true
+          }
+        ],
+        "ok": true,
+        "image_shape": [
+          64,
+          64
+        ],
+        "n_attempts": 2,
+        "wall_s": 43.6
+      },
+      "Model_III_no_sub": {
+        "attempts": [
+          {
+            "n": 1,
+            "schema_ok": true,
+            "gen_s": 2.8,
+            "parses": true,
+            "exec_s": 0.4,
+            "ran": false,
+            "validated": false,
+            "error": "docker run failed or produced no output | ModuleNotFoundError: No module named 'deeplens'"
+          },
+          {
+            "n": 2,
+            "schema_ok": true,
+            "gen_s": 9.1,
+            "parses": true,
+            "exec_s": 1.0,
+            "ran": true,
+            "validated": true
+          }
+        ],
+        "ok": true,
+        "image_shape": [
+          100,
+          100
+        ],
+        "n_attempts": 2,
+        "wall_s": 13.3
+      },
+      "Model_III_cdm": {
+        "attempts": [
+          {
+            "n": 1,
+            "schema_ok": true,
+            "gen_s": 3.8,
+            "parses": true,
+            "exec_s": 0.8,
+            "ran": false,
+            "validated": false,
+            "error": "docker run failed or produced no output | ImportError: cannot import name 'CDM' from 'pyHalo.preset_models' (/usr/local/lib/python3.10/site-packages/pyHalo/preset_models.py)"
+          },
+          {
+            "n": 2,
+            "schema_ok": true,
+            "gen_s": 9.6,
+            "parses": true,
+            "exec_s": 1.0,
+            "ran": true,
+            "validated": true
+          }
+        ],
+        "ok": true,
+        "image_shape": [
+          128,
+          128
+        ],
+        "n_attempts": 2,
+        "wall_s": 15.3
+      },
+      "Model_III_axion": {
+        "attempts": [
+          {
+            "n": 1,
+            "schema_ok": true,
+            "gen_s": 3.1,
+            "parses": true,
+            "exec_s": 0.9,
+            "ran": false,
+            "validated": false,
+            "error": "docker run failed or produced no output | ImportError: cannot import name 'CDM' from 'pyHalo.preset_models' (/usr/local/lib/python3.10/site-packages/pyHalo/preset_models.py)"
+          },
+          {
+            "n": 2,
+            "schema_ok": true,
+            "gen_s": 12.6,
+            "parses": true,
+            "exec_s": 0.9,
+            "ran": false,
+            "validated": false,
+            "error": "docker run failed or produced no output | astropy.units.core.UnitConversionError: 'solMass(1/2) / kg(1/2)' (dimensionless) and 'rad' (angle) are not convertible"
+          },
+          {
+            "n": 3,
+            "schema_ok": true,
+            "gen_s": 3.3,
+            "parses": true,
+            "exec_s": 0.8,
+            "ran": false,
+            "validated": false,
+            "error": "docker run failed or produced no output | ImportError: cannot import name 'CDM' from 'pyHalo.preset_models' (/usr/local/lib/python3.10/site-packages/pyHalo/preset_models.py)"
+          }
+        ],
+        "ok": false,
+        "n_attempts": 3,
+        "wall_s": 21.6
+      }
+    }
+  }
+}
