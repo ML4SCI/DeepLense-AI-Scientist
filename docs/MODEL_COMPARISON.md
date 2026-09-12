@@ -35,8 +35,8 @@ attempt 2). Luna passed 8 (its three Model_I passes were all attempt 1) but fail
   different release. The failure occurred against the image state before the pyHalo
   era-pin commit `c88954c`. Calling it hallucination misdescribes the failure mode
   and understates the case for version-pinning, which is the whole point of the
-  grounding work; `paper2/FACT_SHEET.md` §B1 records the corrected framing and the
-  papers use it. Notably this is *outside* the lenstronomy cheat-sheet's coverage
+  grounding work; the corrected framing above is the one used throughout. Notably
+  this is *outside* the lenstronomy cheat-sheet's coverage
   (we ground lenstronomy signatures, not pyHalo/deeplense) — same class of
   version-grounding gap we fixed for lenstronomy.
 - **Integration gotcha (documented for the framework):** gpt-5.6-* rejects function
