@@ -178,7 +178,25 @@ class TorchTrainBackend:
         return self._seed
 
     def train(
-        self, dataset: DatasetRef, architecture: ArchitectureSpec, config: TrainingConfig
+        self,
+        dataset: DatasetRef,
+        architecture: ArchitectureSpec,
+        config: TrainingConfig,
+    ) -> TrainResult:
+        return self._train_impl(
+            dataset, architecture, config,
+            checkpoint_path=None,
+            additional_epochs=None,
+        )
+
+    def _train_impl(
+        self,
+        dataset: DatasetRef,
+        architecture: ArchitectureSpec,
+        config: TrainingConfig,
+        *,
+        checkpoint_path: str | None,
+        additional_epochs: int | None,
     ) -> TrainResult:
         torch = _require_torch()
         from torch import nn
@@ -188,8 +206,62 @@ class TorchTrainBackend:
         # Seeded so iterations differ only by the config changes being tested,
         # not by initialization/shuffling noise.
         torch.manual_seed(self._seed)
+
+        checkpoint = None
+        if checkpoint_path is not None:
+            if additional_epochs is None or additional_epochs < 1:
+                raise ValueError("additional_epochs must be at least 1.")
+            checkpoint = torch.load(
+                checkpoint_path, map_location=device, weights_only=False
+            )
+            required = {
+                "state_dict", "architecture", "mean", "std",
+                "class_names", "optimizer_state_dict", "completed_epochs",
+            }
+            if not isinstance(checkpoint, dict) or not required.issubset(checkpoint):
+                raise ValueError(
+                    "Checkpoint lacks the training state required for resuming."
+                )
+            if architecture.model_dump(mode="json") != checkpoint["architecture"]:
+                raise ValueError("Architecture does not match the checkpoint.")
+            if dataset.class_names != checkpoint["class_names"]:
+                raise ValueError("Dataset classes do not match the checkpoint.")
+            if tuple(dataset.image_shape) != tuple(checkpoint.get("image_shape", ())):
+                raise ValueError("Dataset image shape does not match the checkpoint.")
+
+            if (
+                dataset.num_samples is not None
+                and dataset.num_samples != checkpoint.get("num_samples")
+            ):
+                raise ValueError("Dataset sample count does not match the checkpoint.")
+            if self._seed != checkpoint.get("seed", self._seed):
+                raise ValueError("Seed does not match the checkpoint.")
+            if float(config.dropout) != float(checkpoint.get("dropout", 0.0)):
+                raise ValueError("Dropout does not match the checkpoint.")
+            if config.early_stop_patience > 0:
+                raise ValueError(
+                    "Resuming with early stopping enabled is not supported yet."
+                )
+            saved_config = checkpoint.get("training_config")
+            if saved_config is None:
+                raise ValueError(
+                    "Checkpoint lacks the original training configuration."
+                )
+
+            current_config = config.model_dump(mode="json")
+            for key in ("loss", "optimizer", "learning_rate", "batch_size",
+                        "weight_decay", "lr_scheduler", "dropout", "augment",
+                        "early_stop_patience"):
+                if current_config[key] != saved_config.get(key):
+                    raise ValueError(
+                        f"Training configuration mismatch for '{key}'."
+                    )
+
         x, y = _load_images(dataset)
-        mean, std = float(x.mean()), float(x.std() or 1.0)
+        if checkpoint is None:
+            mean, std = float(x.mean()), float(x.std() or 1.0)
+        else:
+            mean, std = float(checkpoint["mean"]), float(checkpoint["std"])
         x = (x - mean) / std
 
         # Early stopping: hold out a seeded 10% slice of TRAIN (never touches val/).
@@ -205,16 +277,41 @@ class TorchTrainBackend:
             x, y = x[keep], y[keep]
 
         model = _build_resnet(architecture, dropout=config.dropout).to(device)
+        if checkpoint is not None:
+            model.load_state_dict(checkpoint["state_dict"])
+
         opt = torch.optim.AdamW(
-            model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay
+            model.parameters(),
+            lr=config.learning_rate,
+            weight_decay=config.weight_decay,
         )
+        if checkpoint is not None:
+            opt.load_state_dict(checkpoint["optimizer_state_dict"])
+        if checkpoint is not None:
+            for param_group in opt.param_groups:
+                param_group["lr"] = config.learning_rate
         loader = DataLoader(
             TensorDataset(torch.from_numpy(x), torch.from_numpy(y)),
             batch_size=config.batch_size, shuffle=True,
         )
+        epochs_to_run = (
+            config.epochs if additional_epochs is None else additional_epochs
+        )
+        if epochs_to_run < 1:
+            raise ValueError("Training must run for at least one epoch.")
+
+        start_epoch = (
+            int(checkpoint["completed_epochs"]) if checkpoint is not None else 0
+        )
+
+        # Each resume segment starts a fresh cosine schedule over its
+        # additional epochs; this is not an exact scheduler continuation.
         sched = (
-            torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=config.epochs)
-            if config.lr_scheduler == "cosine" else None
+            torch.optim.lr_scheduler.CosineAnnealingLR(
+                opt, T_max=epochs_to_run
+            )
+            if config.lr_scheduler == "cosine"
+            else None
         )
         loss_fn = nn.CrossEntropyLoss()
 
@@ -240,8 +337,8 @@ class TorchTrainBackend:
         model.train()
         final_loss, final_acc = 0.0, 0.0
         best_acc, best_state, since_best = -1.0, None, 0
-        epochs_run = 0
-        for epoch in range(config.epochs):
+        epochs_run = start_epoch
+        for epoch in range(epochs_to_run):
             tot, correct, loss_sum = 0, 0, 0.0
             for xb, yb in loader:
                 xb, yb = xb.to(device), yb.to(device)
@@ -258,8 +355,12 @@ class TorchTrainBackend:
             if sched is not None:
                 sched.step()
             final_loss, final_acc = loss_sum / tot, correct / tot
-            epochs_run = epoch + 1
-            line = f"    epoch {epochs_run}/{config.epochs}  loss={final_loss:.4f}  acc={final_acc:.4f}"
+            epochs_run = start_epoch + epoch + 1
+            total_epochs = start_epoch + epochs_to_run
+            line = (
+                f"    epoch {epochs_run}/{total_epochs}  "
+                f"loss={final_loss:.4f}  acc={final_acc:.4f}"
+            )
             if es_x is not None:
                 hold_acc = _holdout_acc()
                 line += f"  holdout={hold_acc:.4f}"
@@ -279,16 +380,28 @@ class TorchTrainBackend:
         out_dir = Path(self._output_root) / run_id
         out_dir.mkdir(parents=True, exist_ok=True)
         weights_path = str(out_dir / "model.pt")
+
         torch.save(
             {
+                # Existing fields required by TorchInferBackend.
                 "state_dict": model.state_dict(),
                 "architecture": architecture.model_dump(mode="json"),
                 "dropout": config.dropout,
-                "mean": mean, "std": std,
+                "mean": mean,
+                "std": std,
                 "class_names": dataset.class_names,
+                "image_shape": dataset.image_shape,
+                "num_samples": dataset.num_samples,
+
+                # Additional state for training continuation.
+                "optimizer_state_dict": opt.state_dict(),
+                "completed_epochs": epochs_run,
+                "training_config": config.model_dump(mode="json"),
+                "seed": self._seed,
             },
             weights_path,
         )
+
         metrics = {"train_accuracy": round(final_acc, 4), "final_loss": round(final_loss, 4)}
         if best_acc >= 0:
             metrics["holdout_accuracy"] = round(best_acc, 4)
@@ -299,6 +412,27 @@ class TorchTrainBackend:
             num_classes=dataset.num_classes,
             metrics=metrics,
             epochs_run=epochs_run,
+        )
+
+    def resume(
+        self,
+        dataset: DatasetRef,
+        architecture: ArchitectureSpec,
+        config: TrainingConfig,
+        *,
+        checkpoint_path: str,
+        additional_epochs: int,
+    ) -> TrainResult:
+        """Continue training from a compatible checkpoint."""
+        if additional_epochs < 1:
+            raise ValueError("additional_epochs must be at least 1.")
+
+        return self._train_impl(
+            dataset,
+            architecture,
+            config,
+            checkpoint_path=checkpoint_path,
+            additional_epochs=additional_epochs,
         )
 
 
