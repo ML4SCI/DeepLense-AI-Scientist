@@ -146,7 +146,7 @@ def validate_parameters(
         messages.append(msg)
 
     def ok(name: str) -> None:
-        checks[name] = True
+        checks.setdefault(name, True)
 
     # --- redshifts ---------------------------------------------------------
     if 0 < params.z_lens < r.z_lens_max:
