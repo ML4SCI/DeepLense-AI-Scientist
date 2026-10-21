@@ -10,8 +10,9 @@ docker build -t dlens-lenstronomy:latest sandbox/
 ```
 
 ## How the agent uses it
-`DockerSandbox` (in `src/dlens/tools/_sandbox.py`) writes the generated script to a temp
-dir, then runs it isolated:
+`DockerSandbox` (in `src/dlens/tools/_sandbox.py`) writes the generated script to a fresh
+job dir under `~/.cache/dlens/sandbox/` (override with `DLENS_SANDBOX_DIR`), then runs it
+isolated:
 ```bash
 docker run --rm --network=none --memory=2g --cpus=1 --pids-limit=256 \
   -v "$JOB_DIR":/work -w /work -e DLENS_OUTPUT=/work/output.npy \
@@ -21,6 +22,10 @@ The generated script saves its final image to `$DLENS_OUTPUT`; the agent reads i
 and validates it (runs cleanly, produces a finite, non-trivial 2-D array).
 
 ## Notes
+- The job dir is bind-mounted, so it must be on a path the Docker daemon can see. On
+  macOS, Python's default temp dir (`/var/folders`) is not shared with the Colima VM,
+  which is why job dirs live under `$HOME`: Colima and Docker Desktop both share it by
+  default. If yours doesn't, point `DLENS_SANDBOX_DIR` at a path that is shared.
 - `LocalSandbox` exists only for **offline tests with trusted code** — it runs on the
   host and is **not** an isolation boundary. Never point it at untrusted LLM output.
 - lenstronomy's pinned, dependency-heavy stack is exactly why we isolate it in a

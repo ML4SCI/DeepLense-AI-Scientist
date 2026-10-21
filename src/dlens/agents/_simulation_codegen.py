@@ -9,6 +9,7 @@ workflow agreed on 2026-07-11; the validated code is what gets handed to Michael
 
 from __future__ import annotations
 
+import io
 from typing import Any, Optional
 
 import numpy as np
@@ -42,21 +43,21 @@ def validate_output(
     """
     checks = {
         "ran": result.ok,
-        "produced_output": result.output_path is not None,
+        "produced_output": result.output is not None,
         "is_2d": False,
         "finite": False,
         "non_trivial": False,
     }
     if expected_shape is not None:
         checks["matches_requested_size"] = False
-    if not result.output_path:
+    if result.output is None:
         if result.ok:
             msg = "script ran (exit 0) but wrote no output to the DLENS_OUTPUT path"
         else:
             msg = result.error or "process failed before producing output"
         return ValidationResult(passed=False, checks=checks, message=msg)
     try:
-        arr = np.load(result.output_path)
+        arr = np.load(io.BytesIO(result.output))
     except Exception as exc:  # noqa: BLE001 - report any load failure
         return ValidationResult(passed=False, checks=checks, message=f"output not loadable: {exc}")
 
