@@ -24,7 +24,7 @@ from dlens.agents._train import TrainAgent, TrainReport
 from dlens.schemas._downstream import DatasetRef
 from dlens.schemas._experiment import ExperimentRun, ExperimentState
 from dlens.schemas._model_design import ArchFamily, ArchitectureSpec, TrainingConfig
-from dlens.tools._analysis import compute_analysis
+from dlens.tools._analysis import _macro_auc, compute_analysis
 from dlens.tools._inference import CentroidInferBackend, MockInferBackend, get_infer_backend
 from dlens.tools._training import CentroidTrainBackend, MockTrainBackend, get_train_backend
 
@@ -136,6 +136,46 @@ def test_experiment_run_assembly(tmp_path: Path):
     state = ExperimentState(hypothesis="can a baseline separate a vs b?", runs=[run])
     assert state.runs[0].analysis_result.accuracy == ar.accuracy
     assert state.runs[0].train_result.weights_path == tr.weights_path
+
+
+def test_macro_auc_handles_tied_probabilities():
+    """Tied pos/neg scores must count 0.5 (average ranks), not win outright."""
+    y = np.array([0, 0, 1, 1])
+    probs = np.array([
+        [0.5, 0.4, 0.1],
+        [0.4, 0.5, 0.1],
+        [0.5, 0.3, 0.2],
+        [0.3, 0.6, 0.1],
+    ])
+    # class 0 pairs (pos {0.5,0.4} vs neg {0.5,0.3}): 0.5,1,0,1 -> 0.625
+    # class 1 pairs (pos {0.3,0.6} vs neg {0.4,0.5}): 0,0,1,1  -> 0.5
+    macro = _macro_auc(probs, y, 3)
+    assert macro is not None and abs(macro - (0.625 + 0.5) / 2) < 1e-12
+
+
+@pytest.mark.parametrize("n", [4, 8, 20])
+def test_macro_auc_matches_bruteforce_pairwise(n: int):
+    """Randomized check against the pairwise definition
+    AUC = P(pos > neg) + 0.5 * P(pos == neg), including heavy ties."""
+    rng = np.random.default_rng(n)
+    y = rng.integers(0, 3, size=n)
+    scores = np.round(rng.uniform(0, 1, n), 1)  # rounding forces many ties
+    probs = np.zeros((n, 3))
+    for i in range(n):
+        probs[i, y[i]] = scores[i]
+        probs[i] /= probs[i].sum() if probs[i].sum() else 1.0
+
+    expected = []
+    for c in range(3):
+        pos = y == c
+        if not pos.any() or pos.all():
+            continue
+        p_pos, p_neg = probs[pos, c], probs[~pos, c]
+        wins = (p_pos[:, None] > p_neg[None, :]).sum()
+        ties = (p_pos[:, None] == p_neg[None, :]).sum()
+        expected.append((wins + 0.5 * ties) / (len(p_pos) * len(p_neg)))
+    assert expected, "random draw failed to cover all classes"
+    assert abs(_macro_auc(probs, y, 3) - float(np.mean(expected))) < 1e-12
 
 
 def test_backend_selectors():

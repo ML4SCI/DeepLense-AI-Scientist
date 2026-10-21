@@ -18,17 +18,48 @@ from pydantic_ai import Agent, RunContext
 from dlens.schemas._downstream import AnalysisResult, InferResult
 
 
+def _average_ranks(values: np.ndarray) -> np.ndarray:
+    """Ranks of ``values`` (1 = smallest) with ties sharing their average rank.
+
+    The Mann-Whitney U statistic is only an unbiased AUC estimator when tied
+    scores count 0.5 toward the win count, which corresponds to assigning the
+    MEAN of the tied ordinal ranks to each tied element. Plain ordinal ranks
+    (larger rank wins outright) bias one-vs-rest AUC whenever a positive and a
+    negative sample score identically — e.g. argmax-degenerate or
+    low-precision probability outputs — and the bias can cancel or compound
+    across classes in the macro average.
+    """
+    values = np.asarray(values, dtype=np.float64)
+    order = values.argsort(kind="mergesort")  # stable: deterministic on ties
+    sorted_vals = values[order]
+    ranks = np.empty(values.size, dtype=np.float64)
+    ranks[order] = np.arange(1, values.size + 1)
+    # Replace each tied group's ordinal ranks with their common average.
+    i = 0
+    while i < values.size:
+        j = i
+        while j + 1 < values.size and sorted_vals[j + 1] == sorted_vals[i]:
+            j += 1
+        if j > i:
+            ranks[order[i : j + 1]] = (i + 1 + j + 1) / 2.0
+        i = j + 1
+    return ranks
+
+
 def _macro_auc(probs: np.ndarray, y: np.ndarray, k: int) -> Optional[float]:
-    """Macro one-vs-rest ROC AUC via the rank (Mann-Whitney) statistic."""
+    """Macro one-vs-rest ROC AUC via the rank (Mann-Whitney) statistic.
+
+    Ties in the score column are given average ranks so that each tied
+    positive/negative pair counts 0.5, matching the pairwise definition
+    ``AUC = P(pos > neg) + 0.5 * P(pos == neg)``.
+    """
     aucs: list[float] = []
     for c in range(k):
         pos = y == c
         n_pos, n_neg = int(pos.sum()), int((~pos).sum())
         if n_pos == 0 or n_neg == 0:
             continue
-        order = probs[:, c].argsort()
-        ranks = np.empty(len(y), dtype=np.float64)
-        ranks[order] = np.arange(1, len(y) + 1)
+        ranks = _average_ranks(probs[:, c])
         aucs.append((ranks[pos].sum() - n_pos * (n_pos + 1) / 2) / (n_pos * n_neg))
     return float(np.mean(aucs)) if aucs else None
 
