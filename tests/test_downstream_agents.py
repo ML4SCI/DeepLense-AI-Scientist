@@ -155,17 +155,32 @@ def test_macro_auc_handles_tied_probabilities():
 
 @pytest.mark.parametrize("n", [4, 8, 20])
 def test_macro_auc_matches_bruteforce_pairwise(n: int):
-    """Randomized check against the pairwise definition
-    AUC = P(pos > neg) + 0.5 * P(pos == neg), including heavy ties."""
+    """Compare rank-based AUC to pairwise AUC on tie-heavy probabilities."""
     rng = np.random.default_rng(n)
-    y = rng.integers(0, 3, size=n)
-    scores = np.round(rng.uniform(0, 1, n), 1)  # rounding forces many ties
-    probs = np.zeros((n, 3))
-    for i in range(n):
-        probs[i, y[i]] = scores[i]
-        probs[i] /= probs[i].sum() if probs[i].sum() else 1.0
+    # Cycle through labels so every class has both positive and negative samples.
+    y = np.arange(n) % 3
+    rng.shuffle(y)
+
+    # Repeated valid probability vectors create exact ties in each score column.
+    templates = np.array(
+        [
+            [0.8, 0.1, 0.1],
+            [0.1, 0.8, 0.1],
+            [0.1, 0.1, 0.8],
+            [0.4, 0.4, 0.2],
+            [0.4, 0.2, 0.4],
+            [0.2, 0.4, 0.4],
+            [1 / 3, 1 / 3, 1 / 3],
+            [0.6, 0.2, 0.2],
+            [0.2, 0.6, 0.2],
+            [0.2, 0.2, 0.6],
+        ],
+        dtype=np.float64,
+    )
+    probs = templates[rng.integers(0, len(templates), size=n)]
 
     expected = []
+    tie_pairs = 0
     for c in range(3):
         pos = y == c
         if not pos.any() or pos.all():
@@ -173,9 +188,14 @@ def test_macro_auc_matches_bruteforce_pairwise(n: int):
         p_pos, p_neg = probs[pos, c], probs[~pos, c]
         wins = (p_pos[:, None] > p_neg[None, :]).sum()
         ties = (p_pos[:, None] == p_neg[None, :]).sum()
+        tie_pairs += int(ties)
         expected.append((wins + 0.5 * ties) / (len(p_pos) * len(p_neg)))
-    assert expected, "random draw failed to cover all classes"
-    assert abs(_macro_auc(probs, y, 3) - float(np.mean(expected))) < 1e-12
+
+    assert len(expected) == 3
+    assert tie_pairs > 0, "the generated data must contain cross-class score ties"
+    actual = _macro_auc(probs, y, 3)
+    assert actual is not None
+    assert abs(actual - float(np.mean(expected))) < 1e-12
 
 
 def test_backend_selectors():
