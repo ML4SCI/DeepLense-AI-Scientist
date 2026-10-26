@@ -178,6 +178,7 @@ def test_grid_size_is_read_from_keywords_in_either_spelling():
     # numPix/deltaPix; lenstronomy 1.14.1+ spells them num_pix/delta_pix.
     base = "".join(line + "\n" for line in _MATCHING_PROGRAM.splitlines()
                    if not line.startswith(("numPix", "deltaPix")))
+    base = base.replace("pixel_size=deltaPix", "pixel_size=0.08")  # deltaPix is no longer a name
     call = ("kwargs_data = data_configure_simple({n}=64, {d}=0.08, "
             "exposure_time=exposure_time, background_rms=background_rms)\n")
     for n, d in (("numPix", "deltaPix"), ("num_pix", "delta_pix")):
@@ -246,6 +247,12 @@ def _diverged(comp) -> dict:
     return {c.field: c.actual for c in comp.diverged}
 
 
+def test_image_model_program_matches():
+    comp = compare_code_to_params(_IMAGE_MODEL_PROGRAM, _PARAMS)
+    assert comp.passed, comp.messages
+    assert {"psf_type", "psf_pixel_size", "lens_model_list"} <= set(comp.matched)
+
+
 def test_dict_unpacking_is_applied_in_order():
     # {'theta_E': 1.0, **{'theta_E': 2.5}} renders 2.5; the override must not be ignored.
     comp = compare_code_to_params(_IMAGE_MODEL_PROGRAM.replace(
@@ -261,3 +268,56 @@ def test_dict_unpacking_is_applied_in_order():
         "base = {'e1': 0.1, 'e2': 0.0, 'center_x': 0.0, 'center_y': 0.0}\n"
         "kwargs_lens = [{**base, 'theta_E': 1.0}]"), _PARAMS)
     assert comp.passed, comp.messages
+
+
+def test_code_that_does_not_run_does_not_count():
+    for wrapper in ("if False:\n    ", "def unused():\n    "):
+        comp = compare_code_to_params(_IMAGE_MODEL_PROGRAM.replace(_LENS, _WRONG_LENS + wrapper + _LENS), _PARAMS)
+        assert _diverged(comp).get("kwargs_lens[0].theta_E") == 2.5, wrapper
+
+    # A branch that depends on runtime values: either kwargs_lens may be rendered.
+    comp = compare_code_to_params(_IMAGE_MODEL_PROGRAM.replace(
+        _LENS, _WRONG_LENS + "if len(sys.argv) > 2:\n    " + _LENS), _PARAMS)
+    assert "kwargs_lens" in comp.unresolved
+
+    # A function counts where it is called, here under the __main__ guard.
+    head, body = _IMAGE_MODEL_PROGRAM.split("numPix = 64")
+    body = "".join(f"    {line}\n" if line.strip() else "\n" for line in ("numPix = 64" + body).splitlines())
+    script = head + "def main():\n" + body + "\nif __name__ == '__main__':\n    main()\n"
+    assert compare_code_to_params(script, _PARAMS).passed
+    assert "kwargs_lens" in compare_code_to_params(script.replace("    main()", "    pass"), _PARAMS).missing
+
+
+def test_the_model_classes_built_outrank_list_assignments():
+    comp = compare_code_to_params(_IMAGE_MODEL_PROGRAM.replace(
+        "LensModel(lens_model_list=lens_model_list)", "LensModel(lens_model_list=['SIS'])"), _PARAMS)
+    assert _diverged(comp) == {"lens_model_list": ["SIS"]}
+
+    # The LightModel given to ImageModel as the source is the one checked, even
+    # when a lens-light LightModel is built too.
+    program = _IMAGE_MODEL_PROGRAM.replace(
+        "image_model = ImageModel(", "lens_light = LightModel(light_model_list=['SERSIC'])\n"
+        "image_model = ImageModel(").replace(
+        "kwargs_numerics=", "lens_light_model_class=lens_light, kwargs_numerics=")
+    assert compare_code_to_params(program, _PARAMS).passed
+
+
+def test_arguments_left_out_of_image_are_missing():
+    call = "image_model.image(kwargs_lens=kwargs_lens, kwargs_source=kwargs_source)"
+    comp = compare_code_to_params(_IMAGE_MODEL_PROGRAM.replace(
+        call, "image_model.image(kwargs_lens=kwargs_lens)"), _PARAMS)
+    assert comp.missing == ["kwargs_source"]
+    comp = compare_code_to_params(_IMAGE_MODEL_PROGRAM.replace(call, "image_model.image()"), _PARAMS)
+    assert comp.missing == ["kwargs_lens", "kwargs_source"]
+
+
+def test_psf_type_and_pixel_size_are_compared():
+    psf = "PSF(psf_type='GAUSSIAN', fwhm=0.15, pixel_size=deltaPix)"
+    for changed, field, actual in (
+        ("PSF(psf_type='NONE', fwhm=0.15, pixel_size=deltaPix)", "psf_type", "NONE"),
+        ("PSF(fwhm=0.15, pixel_size=deltaPix)", "psf_type", "NONE"),  # lenstronomy's default
+        ("PSF(psf_type='GAUSSIAN', fwhm=0.15, pixel_size=0.05)", "psf_pixel_size", 0.05),
+    ):
+        comp = compare_code_to_params(_IMAGE_MODEL_PROGRAM.replace(psf, changed), _PARAMS)
+        assert _diverged(comp) == {field: actual}, changed
+

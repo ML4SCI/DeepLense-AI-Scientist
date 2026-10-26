@@ -34,7 +34,12 @@ the default (my 168-run grounding ablation depends on its exact behavior):
    default 2 passes). Resolution follows literals, names, constant-folded
    arithmetic, and dict/list subscripts of literals (`kwargs_data["exposure_time"]`
    — an idiom gpt-5.2 actually produces; the first live run failed on exactly this
-   and the resolver was extended, still zero-guessing).
+   and the resolver was extended, still zero-guessing), plus `**` expansions of
+   such dicts. The script is followed the way it runs: the model lists and PSF
+   come from the `LensModel`/`LightModel`/`PSF` given to the `ImageModel` that
+   renders, code in a branch that cannot run or a function that is never called
+   does not count, and a value that depends on a runtime condition or a loop is
+   unresolved.
 
 Select it explicitly: `TwoStageSimulationAgent` in code, or
 `scripts/simulation_codegen_demo.py --two-stage`.

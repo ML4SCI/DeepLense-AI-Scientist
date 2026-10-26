@@ -22,8 +22,8 @@ Per prompt it persists:
 
 Field counts are NOT comparable across prompts unless the extracted parameter
 shape matches: the denominator is 2 model lists + one entry per lens/source
-kwargs key + numPix/deltaPix/exposure_time/background_rms/psf_fwhm. A single
-SIE lens with a single SERSIC_ELLIPSE source gives 19.
+kwargs key + numPix/deltaPix/exposure_time/background_rms + psf_type/psf_fwhm/
+psf_pixel_size. A single SIE lens with a single SERSIC_ELLIPSE source gives 21.
 """
 
 from __future__ import annotations
