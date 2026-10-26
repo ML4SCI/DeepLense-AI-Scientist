@@ -22,6 +22,7 @@ Range provenance is cited per field below. Sources, strongest first:
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 
 from dlens.schemas._lens_params import LensParameterSet, ParamValidationResult
@@ -41,6 +42,31 @@ PROFILE_PARAMS: dict[str, list[str]] = {
     "SERSIC_ELLIPSE": ["amp", "R_sersic", "n_sersic", "e1", "e2", "center_x", "center_y"],
     "GAUSSIAN": ["amp", "sigma", "center_x", "center_y"],
 }
+
+# The arguments each profile's lenstronomy ``function`` takes without a default
+# (introspected from 1.9.2; identical in 1.14.2). Leaving one out makes
+# lenstronomy raise a TypeError at render time. The remaining names (centres,
+# the shear origin) default to 0.
+REQUIRED_PARAMS: dict[str, list[str]] = {
+    "SIE": ["theta_E", "e1", "e2"],
+    "SIS": ["theta_E"],
+    "EPL": ["theta_E", "gamma", "e1", "e2"],
+    "SHEAR": ["gamma1", "gamma2"],
+    "NFW": ["Rs", "alpha_Rs"],
+    "SERSIC": ["amp", "R_sersic", "n_sersic"],
+    "SERSIC_ELLIPSE": ["amp", "R_sersic", "n_sersic", "e1", "e2"],
+    "GAUSSIAN": ["amp", "sigma"],
+}
+
+# Which profiles each model list may use: LensModel rejects the light profiles and
+# LightModel the lens profiles (lenstronomy raises a ValueError at construction).
+COMPONENT_PROFILES: dict[str, list[str]] = {
+    "lens": ["SIE", "SIS", "EPL", "SHEAR", "NFW"],
+    "source": ["SERSIC", "SERSIC_ELLIPSE", "GAUSSIAN"],
+}
+
+# The psf_type values lenstronomy's PSF accepts; anything else raises a ValueError.
+PSF_TYPES = ("GAUSSIAN", "PIXEL", "NONE")
 
 
 @dataclass
@@ -95,42 +121,133 @@ class ValidationRanges:
     # score ~18, slightly BELOW the nominal "SNR ~25" from the meeting.
     snr_min: float = 14.0
     snr_max: float = 60.0
-    # MEASURED calibration: peak-pixel estimate x this factor makes canonical
-    # recipe parameters reproduce the measured median (18.1), and the recipe's
-    # exposure draw 10**U(3,3.5) then predicts [14.8, 21.2] vs measured
-    # [p5 14.8, p95 22.0]. Physically: SIE magnification + PSF of the lensed
-    # peak. Heuristic for very non-recipe geometries.
-    lensing_boost: float = 5.9
+    # MEASURED calibration: how far the brightest pixel of a noisy image sits
+    # above the noiseless peak, in units of that pixel's noise. 1.35 makes
+    # canonical recipe parameters reproduce the measured median (18.1); the
+    # recipe's draws of exposure 10**U(3,3.5) and source centre U(-0.35,0.35)
+    # then predict p5/p95 [14.7, 21.7] vs measured [14.8, 22.0].
+    snr_noise_excess: float = 1.35
     profile_params: dict[str, list[str]] = field(default_factory=lambda: PROFILE_PARAMS)
+    required_params: dict[str, list[str]] = field(default_factory=lambda: REQUIRED_PARAMS)
+    component_profiles: dict[str, list[str]] = field(default_factory=lambda: COMPONENT_PROFILES)
 
 
-def _estimate_snr(params: LensParameterSet, boost: float) -> float | None:
-    """Peak-pixel SNR of the LENSED image, calibrated against real data.
+_FWHM_TO_SIGMA = 1.0 / (2.0 * math.sqrt(2.0 * math.log(2.0)))
+_MAX_STRETCH = 1e4  # tangential magnification cap, for a source right behind the lens
+_SERSIC_CORE = 1e-3  # arcsec; lenstronomy 1.9.2's LightModel flattens Sersic profiles inside it
+_NODES = 400
 
-    peak counts ~ amp * deltaPix^2 * exposure_time * ``boost``, where boost is
-    the empirical amplification of the observed peak by SIE lensing (+PSF) —
-    calibrated so canonical Model_I recipe parameters reproduce the peak SNR
-    measured on 900 real Model_I images (median 18.1; the recipe's exposure
-    draw then predicts [14.8, 21.2] vs measured p5/p95 [14.8, 22.0]).
 
-    Definition history, for honesty: v1 was peak-pixel WITHOUT the boost
+def _i0e(z: float) -> float:
+    """exp(-z) * I0(z) for z >= 0 (Abramowitz & Stegun 9.8.1-9.8.2, rel. error < 3e-7)."""
+    t = z / 3.75
+    if t <= 1.0:
+        t2 = t * t
+        return math.exp(-z) * (1.0 + t2 * (3.5156229 + t2 * (3.0899424 + t2 * (1.2067492 + t2 * (
+            0.2659732 + t2 * (0.0360768 + t2 * 0.0045813))))))
+    poly = 0.00392377
+    for c in (-0.01647633, 0.02635537, -0.02057706, 0.00916281, -0.00157565,
+              0.00225319, 0.01328592, 0.39894228):
+        poly = c + poly / t
+    return poly / math.sqrt(z)
+
+
+def _blurred_centre(profile, sigma_r: float, sigma_t: float) -> float:
+    """Centre value of a circular profile convolved with a Gaussian of widths sigma_r >= sigma_t.
+
+    That is the mean of profile(|X|) for X ~ N(0, diag(sigma_r^2, sigma_t^2)), whose
+    radius has density r / (sigma_r sigma_t) exp(-r^2 / 2 sigma_r^2) i0e(k r^2) with
+    k = (1/sigma_t^2 - 1/sigma_r^2) / 4. Integrated on a log grid, so a high-n
+    Sersic cusp is resolved.
+    """
+    k = (1.0 / sigma_t**2 - 1.0 / sigma_r**2) / 4.0
+    lo, hi = math.log(1e-6 * sigma_t), math.log(10.0 * sigma_r)
+    step = (hi - lo) / (_NODES - 1)
+    total = 0.0
+    for i in range(_NODES):
+        r = math.exp(lo + i * step)
+        density = r / (sigma_r * sigma_t) * math.exp(-r * r / (2.0 * sigma_r**2)) * _i0e(k * r * r)
+        total += (0.5 if i in (0, _NODES - 1) else 1.0) * profile(r) * density * r
+    return total * step
+
+
+def _tangential_stretch(params: LensParameterSet, src: dict[str, float]) -> float:
+    """Tangential magnification of the source centre's outer image, treating the
+    first lens with a theta_E as an SIS: mu_t = 1 + theta_E / beta (radial mu = 1)."""
+    for kw in params.kwargs_lens:
+        if kw.get("theta_E", 0.0) > 0:
+            beta = math.hypot(src.get("center_x", 0.0) - kw.get("center_x", 0.0),
+                              src.get("center_y", 0.0) - kw.get("center_y", 0.0))
+            return min(1.0 + kw["theta_E"] / beta, _MAX_STRETCH) if beta > 0 else _MAX_STRETCH
+    return 1.0
+
+
+def _source_peak(params: LensParameterSet, name: str, kw: dict[str, float], sigma: float) -> float | None:
+    """Surface brightness at the brightest pixel of one lensed source.
+
+    The PSF and the pixel blur the profile by a Gaussian of width ``sigma``. In
+    the source plane the lens shrinks that blur along the arc by its tangential
+    stretch, so a stretched source keeps more of its central brightness.
+    """
+    sigma_t = sigma / _tangential_stretch(params, kw)
+    if name in ("SERSIC", "SERSIC_ELLIPSE"):
+        amp, r_e, n = kw.get("amp"), kw.get("R_sersic", 0.0), kw.get("n_sersic", 0.0)
+        if amp is None or r_e <= 0 or n <= 0:
+            return None
+        b_n = max(1.9992 * n - 0.3271, 1e-5)  # lenstronomy 1.9.2's SersicUtil.b_n
+        # amp is the brightness at R_sersic, rising toward amp * exp(b_n) at the centre.
+        return _blurred_centre(
+            lambda r: amp * math.exp(-b_n * ((max(r, _SERSIC_CORE) / r_e) ** (1.0 / n) - 1.0)),
+            sigma, sigma_t)
+    if name == "GAUSSIAN":
+        amp, s = kw.get("amp"), kw.get("sigma", 0.0)
+        if amp is None or s <= 0:
+            return None
+        # amp is the total flux; the blurred Gaussian's centre has a closed form.
+        return amp / (2.0 * math.pi * math.sqrt((s * s + sigma * sigma) * (s * s + sigma_t * sigma_t)))
+    return None
+
+
+def _estimate_snr(params: LensParameterSet, noise_excess: float) -> float | None:
+    """Peak SNR of the lensed image, on the scale real Model_I images were measured on.
+
+    Signal: the brightest source pixel, from each source profile's centre blurred by
+    the PSF and the pixel (``_source_peak``). Noise: DeepLenseSim's recipe, which
+    adds Poisson and Gaussian background noise to the model and then draws Poisson
+    counts, clipping the background at zero. The measured SNR is
+    (brightest pixel - background mean) / sqrt(brightest pixel + background variance).
+    With a background sigma of sb counts, a pixel of P counts has variance
+    2 P + sb^2 (Poisson noise is added twice) and the brightest pixel sits
+    ``noise_excess`` of that noise above the peak; the clipped background has mean
+    sb / sqrt(2 pi) and variance sb / sqrt(2 pi) + sb^2 (pi - 1) / (2 pi).
+
+    Definition history, for honesty: v1 was peak-pixel WITHOUT any lensing term
     (under-predicted ~6x — every live extraction failed); v2 switched to
-    aperture-integrated (self-consistent but placed real images at ~305,
-    nowhere near the nominal 25 — wrong definition family). Real images
-    measure ~18 on peak SNR, which is the same scale as the meeting's "~25"
-    target, so peak-with-boost is what the recipe evidently means by SNR.
+    aperture-integrated (self-consistent but placed real images at ~305, nowhere
+    near the nominal 25 — wrong definition family); v3 was amp * deltaPix^2 *
+    exposure * 5.9, which matched real images, but 5.9 is mostly the n = 1 Sersic's
+    centre-to-R_sersic ratio exp(b_1) = 5.3, so it misjudged every other Sersic
+    index: its peak was 2-3x too bright below n = 1 and ~3x too faint above n = 2.
     """
     data = params.kwargs_data
     if data.exposure_time is None or data.background_rms is None:
         return None
-    if data.exposure_time <= 0 or data.background_rms <= 0:
+    if data.exposure_time <= 0 or data.background_rms <= 0 or data.deltaPix <= 0:
         return None  # covered by their own checks
-    amps = [kw["amp"] for kw in params.kwargs_source if "amp" in kw]
-    if not amps:
+    psf = params.kwargs_psf
+    fwhm = psf.fwhm if psf.psf_type != "NONE" and psf.fwhm and psf.fwhm > 0 else 0.0
+    sigma = math.sqrt((fwhm * _FWHM_TO_SIGMA) ** 2 + data.deltaPix**2 / 12.0)
+    peaks = [_source_peak(params, name, kw, sigma)
+             for name, kw in zip(params.source_model_list, params.kwargs_source)]
+    peaks = [p for p in peaks if p is not None]
+    if not peaks:
         return None
-    peak_counts = max(amps) * data.deltaPix**2 * data.exposure_time * boost
-    noise = (peak_counts + (data.background_rms * data.exposure_time) ** 2) ** 0.5
-    return peak_counts / noise if noise > 0 else None
+    peak = max(0.0, max(peaks)) * data.deltaPix**2 * data.exposure_time  # amp <= 0: no signal
+    sb = data.background_rms * data.exposure_time
+    top = peak + noise_excess * math.sqrt(2.0 * peak + sb * sb)
+    bkg_mean = sb / math.sqrt(2.0 * math.pi)
+    bkg_var = bkg_mean + sb * sb * (math.pi - 1.0) / (2.0 * math.pi)
+    return (top - bkg_mean) / math.sqrt(top + bkg_var)
 
 
 def validate_parameters(
@@ -178,32 +295,42 @@ def validate_parameters(
                  f"{len(kwargs)} dicts — lenstronomy pairs them positionally, one dict "
                  "per profile.")
             continue
+        other = "source" if label == "lens" else "lens"
+        allowed = [p for p in r.component_profiles[label] if p in r.profile_params]
         for i, (name, kw) in enumerate(zip(models, kwargs)):
-            known = r.profile_params.get(name)
-            if known is None:
+            if name not in allowed:
+                where = (f" '{name}' is a {other} profile."
+                         if name in r.component_profiles[other] else "")
                 fail(f"{label}_profile_{i}_known",
                      f"Unknown {label} profile '{name}' — supported (1.9.2-verified): "
-                     f"{sorted(r.profile_params)}.")
+                     f"{allowed}.{where}")
                 continue
+            known = r.profile_params[name]
             unknown_keys = sorted(set(kw) - set(known))
+            required = r.required_params.get(name, [])
+            missing_keys = [k for k in required if k not in kw]
             if unknown_keys:
                 fail(f"{label}_profile_{i}_keys",
                      f"{name} kwargs contain unknown key(s) {unknown_keys}; 1.9.2 "
                      f"accepts exactly {known}. Check for version-blended names.")
-            else:
+            if missing_keys:
+                fail(f"{label}_profile_{i}_keys",
+                     f"{name} kwargs are missing required key(s) {missing_keys}; "
+                     f"lenstronomy needs {required} and defaults the rest to 0.")
+            if not unknown_keys and not missing_keys:
                 ok(f"{label}_profile_{i}_keys")
 
     # --- Einstein radius ----------------------------------------------------
-    thetas = [kw["theta_E"] for kw in params.kwargs_lens if "theta_E" in kw]
-    if thetas:
-        t = thetas[0]
-        if r.theta_e_min <= t <= r.theta_e_max:
-            ok("einstein_radius")
-        else:
-            fail("einstein_radius",
-                 f"theta_E={t} arcsec outside [{r.theta_e_min}, {r.theta_e_max}]; "
-                 "galaxy-scale lenses are typically ~0.5–3 arcsec (canonical DeepLense "
-                 "configuration is ~1 arcsec).")
+    # Every lens profile with a theta_E is checked; any one out of range fails.
+    thetas = [(i, kw["theta_E"]) for i, kw in enumerate(params.kwargs_lens) if "theta_E" in kw]
+    bad_thetas = [(i, t) for i, t in thetas if not r.theta_e_min <= t <= r.theta_e_max]
+    for i, t in bad_thetas:
+        fail("einstein_radius",
+             f"kwargs_lens[{i}] theta_E={t} arcsec outside [{r.theta_e_min}, {r.theta_e_max}]; "
+             "galaxy-scale lenses are typically ~0.5–3 arcsec (canonical DeepLense "
+             "configuration is ~1 arcsec).")
+    if thetas and not bad_thetas:
+        ok("einstein_radius")
 
     # --- ellipticity (lens + source e1/e2) ----------------------------------
     e_bad = [
@@ -213,13 +340,26 @@ def validate_parameters(
         for k in ("e1", "e2")
         if k in kw and abs(kw[k]) > r.ellipticity_max
     ]
+    # Each component can be in range while the pair is not: the axis ratio is
+    # (1 - |e|) / (1 + |e|), so |e| = sqrt(e1^2 + e2^2) must stay below 1.
+    e_degenerate = [
+        (name, i, math.hypot(kw.get("e1", 0.0), kw.get("e2", 0.0)))
+        for name, kws in (("lens", params.kwargs_lens), ("source", params.kwargs_source))
+        for i, kw in enumerate(kws)
+        if ("e1" in kw or "e2" in kw) and math.hypot(kw.get("e1", 0.0), kw.get("e2", 0.0)) >= 1
+    ]
     if any("e1" in kw or "e2" in kw for kw in params.kwargs_lens + params.kwargs_source):
         if e_bad:
             name, k, v = e_bad[0]
             fail("ellipticity",
                  f"{name} {k}={v} exceeds |e|<={r.ellipticity_max} (axis ratio would "
                  "be extreme); use param_util.phi_q2_ellipticity with q>~1/3.")
-        else:
+        if e_degenerate:
+            name, i, mag = e_degenerate[0]
+            fail("ellipticity",
+                 f"kwargs_{name}[{i}] has sqrt(e1^2 + e2^2) = {mag:.3g} >= 1, which has no "
+                 "positive axis ratio; use param_util.phi_q2_ellipticity with q>~1/3.")
+        if not e_bad and not e_degenerate:
             ok("ellipticity")
 
     # --- Sersic index / radius ----------------------------------------------
@@ -266,6 +406,11 @@ def validate_parameters(
 
     # --- PSF ------------------------------------------------------------------
     psf = params.kwargs_psf
+    if psf.psf_type in PSF_TYPES:
+        ok("psf_type")
+    else:
+        fail("psf_type", f"psf_type={psf.psf_type!r} is not one of {list(PSF_TYPES)}; "
+             "lenstronomy's PSF raises a ValueError for anything else.")
     if psf.psf_type == "GAUSSIAN":
         if psf.fwhm is not None and psf.fwhm > 0:
             ok("psf_fwhm")
@@ -301,7 +446,7 @@ def validate_parameters(
                  f"[{r.vortex_mass_min:g}, {r.vortex_mass_max:g}]; canonical value 3e10.")
 
     # --- SNR in the real-data band (where computable) -----------------------------
-    snr = _estimate_snr(params, r.lensing_boost)
+    snr = _estimate_snr(params, r.snr_noise_excess)
     if snr is not None:
         if r.snr_min <= snr <= r.snr_max:
             ok("snr")

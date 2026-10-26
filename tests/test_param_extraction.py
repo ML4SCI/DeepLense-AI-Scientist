@@ -5,6 +5,9 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import math
+
+import pytest
 
 from dlens.agents._param_extraction import ExtractedParameters, ParamExtractionAgent
 from dlens.agents._scripted_codegen import make_scripted_codegen_model
@@ -133,6 +136,95 @@ def test_validator_snr_skipped_when_noiseless():
     assert res.passed
 
 
+# lenstronomy 1.9.2 renders of one lens at Model_I settings (150 px at 0.05", Gaussian
+# PSF FWHM 0.087", no supersampling, 1778 s, background_rms 0.01, the recipe's noise),
+# with amp set so each image measures SNR ~24: the median over 50 noise draws of
+# (brightest pixel - mean of the 10 px corners) / sqrt(brightest pixel + their variance),
+# the measurement the [14, 60] band comes from. Their amps span 25x, so amp alone
+# cannot predict the SNR: it is the brightness at R_sersic for a Sersic profile (the
+# centre is exp(b_n) brighter, then blurred) and the total flux for a Gaussian.
+_SNR_REFERENCES = [
+    ("SERSIC_ELLIPSE", {"amp": 76.0, "R_sersic": 0.3, "n_sersic": 0.5}, 25.3),
+    ("SERSIC_ELLIPSE", {"amp": 32.0, "R_sersic": 0.3, "n_sersic": 1.0}, 24.2),
+    ("SERSIC_ELLIPSE", {"amp": 10.0, "R_sersic": 0.3, "n_sersic": 2.0}, 23.3),
+    ("SERSIC_ELLIPSE", {"amp": 3.1, "R_sersic": 0.3, "n_sersic": 4.0}, 23.6),
+    ("GAUSSIAN", {"amp": 9.9, "sigma": 0.1}, 24.5),
+]
+
+
+@pytest.mark.parametrize("source,kwargs,measured", _SNR_REFERENCES)
+def test_validator_snr_tracks_the_source_profile(source, kwargs, measured):
+    shape = {"e1": -0.05, "e2": 0.05} if source == "SERSIC_ELLIPSE" else {}
+    params = LensParameterSet(
+        z_lens=0.5, z_source=1.0, lens_model_list=["SIE"],
+        kwargs_lens=[{"theta_E": 1.2, "e1": 0.1, "e2": 0.0, "center_x": 0.0, "center_y": 0.0}],
+        source_model_list=[source],
+        kwargs_source=[{**kwargs, **shape, "center_x": 0.12, "center_y": 0.05}],
+        kwargs_data={"numPix": 150, "deltaPix": 0.05, "exposure_time": 1778.0, "background_rms": 0.01},
+        kwargs_psf={"psf_type": "GAUSSIAN", "fwhm": 0.087, "pixel_size": 0.05},
+    )
+    res = validate_parameters(params)
+    assert res.checks["snr"] is True, res.messages
+    assert res.snr_estimate == pytest.approx(measured, rel=0.15)
+
+
+def test_validator_snr_negative_amp_fails_instead_of_crashing():
+    bad = copy.deepcopy(GOOD_PARAMS)
+    bad["kwargs_source"][0]["amp"] = -100.0
+    res = validate_parameters(LensParameterSet.model_validate(bad))
+    assert res.checks["snr"] is False
+    assert any("raise source amp" in m for m in res.messages)
+
+
+def test_validator_psf_type_must_be_one_lenstronomy_accepts():
+    res = validate_parameters(_params(kwargs_psf={"psf_type": "GAUSIAN", "fwhm": 0.15, "pixel_size": 0.08}))
+    assert res.checks["psf_type"] is False
+    assert any("GAUSIAN" in m and "NONE" in m for m in res.messages)
+    assert validate_parameters(_params()).checks["psf_type"] is True
+
+
+def test_validator_profiles_are_checked_against_their_own_component():
+    res = validate_parameters(_params(source_model_list=["SIE"],
+                                      kwargs_source=[{"theta_E": 1.0, "e1": 0.1, "e2": 0.0}]))
+    assert res.checks["source_profile_0_known"] is False
+    assert any("'SIE' is a lens profile" in m for m in res.messages)
+
+    res = validate_parameters(_params(lens_model_list=["SERSIC"],
+                                      kwargs_lens=[{"amp": 1.0, "R_sersic": 0.3, "n_sersic": 1.0}]))
+    assert res.checks["lens_profile_0_known"] is False
+
+
+def test_validator_combined_ellipticity_must_stay_below_one():
+    # Each component is within a 0.8 bound, but |e| = 1.13 has no axis ratio.
+    wide = ValidationRanges(ellipticity_max=0.8)
+    bad = copy.deepcopy(GOOD_PARAMS)
+    bad["kwargs_lens"][0].update(e1=0.8, e2=0.8)
+    res = validate_parameters(LensParameterSet.model_validate(bad), wide)
+    assert res.checks["ellipticity"] is False
+    assert any("sqrt(e1^2 + e2^2) = 1.13" in m for m in res.messages)
+
+    strong = copy.deepcopy(GOOD_PARAMS)
+    strong["kwargs_lens"][0].update(e1=0.6, e2=0.6)  # |e| = 0.85: extreme but valid
+    assert validate_parameters(LensParameterSet.model_validate(strong), wide).checks["ellipticity"] is True
+
+
+def test_validator_snr_skipped_for_a_nonpositive_pixel_scale():
+    res = validate_parameters(_params(
+        kwargs_data={"numPix": 64, "deltaPix": 0.0, "exposure_time": 5400.0, "background_rms": 0.01},
+        kwargs_psf={"psf_type": "NONE"}))
+    assert res.checks["deltapix"] is False
+    assert res.snr_estimate is None and "snr" not in res.checks
+
+
+def test_blurred_centre_matches_the_gaussian_closed_form():
+    from dlens.tools._param_validator import _blurred_centre
+
+    # A Gaussian of width s blurred by widths (sr, st) peaks at s^2 / sqrt((s^2+sr^2)(s^2+st^2)).
+    for s, sr, st in ((0.1, 0.04, 0.04), (0.05, 0.08, 0.002), (0.3, 0.02, 0.01)):
+        exact = s * s / math.sqrt((s * s + sr * sr) * (s * s + st * st))
+        assert _blurred_centre(lambda r: math.exp(-r * r / (2 * s * s)), sr, st) == pytest.approx(exact, rel=1e-4)
+
+
 def test_validator_unknown_profile_and_keys():
     bad = copy.deepcopy(GOOD_PARAMS)
     bad["lens_model_list"] = ["SIE_FANCY"]
@@ -216,3 +308,64 @@ def test_two_stage_gives_up_after_bounded_retries():
     assert not res.ok
     assert res.extraction_attempts == 2
     assert res.codegen is None  # codegen never ran on unvalidated parameters
+
+
+def test_validator_checks_every_lens_profile_einstein_radius():
+    # Only the first profile with a theta_E used to be checked, so a bad
+    # second profile passed.
+    good = GOOD_PARAMS["kwargs_lens"][0]
+    params = copy.deepcopy(GOOD_PARAMS)
+    params["lens_model_list"] = ["SIE", "SIE"]
+    params["kwargs_lens"] = [dict(good), {**good, "theta_E": 40.0}]
+    res = validate_parameters(LensParameterSet.model_validate(params))
+    assert res.passed is False
+    assert res.checks["einstein_radius"] is False
+    assert any("kwargs_lens[1]" in m and "theta_E=40.0" in m for m in res.messages)
+
+
+def test_validator_requires_each_profiles_required_keys():
+    # Only unknown keys used to be rejected, so an SIE with no theta_E passed;
+    # lenstronomy then raises a TypeError when it renders.
+    no_theta = copy.deepcopy(GOOD_PARAMS)
+    del no_theta["kwargs_lens"][0]["theta_E"]
+    res = validate_parameters(LensParameterSet.model_validate(no_theta))
+    assert res.passed is False
+    assert res.checks["lens_profile_0_keys"] is False
+    assert any("missing required key(s) ['theta_E']" in m for m in res.messages)
+
+    no_gamma2 = copy.deepcopy(GOOD_PARAMS)
+    no_gamma2["lens_model_list"] = ["SIE", "SHEAR"]
+    no_gamma2["kwargs_lens"].append({"gamma1": 0.02})
+    res = validate_parameters(LensParameterSet.model_validate(no_gamma2))
+    assert res.checks["lens_profile_1_keys"] is False
+
+    # Centres and the shear origin default to 0 in lenstronomy, so they stay optional.
+    centred = copy.deepcopy(GOOD_PARAMS)
+    centred["lens_model_list"] = ["SIE", "SHEAR"]
+    centred["kwargs_lens"].append({"gamma1": 0.02, "gamma2": 0.0})
+    for kw in centred["kwargs_lens"] + centred["kwargs_source"]:
+        kw.pop("center_x", None)
+        kw.pop("center_y", None)
+    res = validate_parameters(LensParameterSet.model_validate(centred))
+    assert res.passed, res.messages
+
+
+def test_required_keys_are_all_named_in_the_extraction_prompt():
+    # The stricter key check must never reject a profile written the way the
+    # extraction prompt tells the agent to write it.
+    import re
+
+    from dlens.prompts._param_extraction import PARAM_EXTRACTION_SYSTEM_PROMPT
+    from dlens.tools._param_validator import PROFILE_PARAMS, REQUIRED_PARAMS
+
+    # Prompt lines read "SIE: theta_E, e1, e2, center_x, center_y"; a trailing
+    # "(optionally ...)" lists keys the agent may leave out.
+    prompted = {
+        m.group(1): {k.strip() for k in m.group(2).split(",") if k.strip()}
+        for m in re.finditer(r"\b([A-Z_]+): ([A-Za-z0-9_, ]+)", PARAM_EXTRACTION_SYSTEM_PROMPT)
+        if m.group(1) in PROFILE_PARAMS
+    }
+    assert set(prompted) == set(PROFILE_PARAMS)
+    for name, required in REQUIRED_PARAMS.items():
+        assert set(required) <= prompted[name], name
+        assert set(required) <= set(PROFILE_PARAMS[name]), name
