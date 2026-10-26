@@ -70,6 +70,32 @@ def test_validator_sersic_index():
     assert res.checks["sersic_index"] is False
 
 
+def test_validator_sersic_index_multiple_profiles_order_independent():
+    good = GOOD_PARAMS["kwargs_source"][0]
+    bad = {**good, "n_sersic": 12.0}
+    for sources in ([bad, good], [good, bad]):
+        params = copy.deepcopy(GOOD_PARAMS)
+        params["source_model_list"] = ["SERSIC_ELLIPSE", "SERSIC_ELLIPSE"]
+        params["kwargs_source"] = sources
+        res = validate_parameters(LensParameterSet.model_validate(params))
+        assert res.passed is False
+        assert res.checks["sersic_index"] is False
+        assert any("n_sersic=12.0" in m for m in res.messages)
+
+
+def test_validator_sersic_radius_multiple_profiles_order_independent():
+    good = GOOD_PARAMS["kwargs_source"][0]
+    bad = {**good, "R_sersic": -1.0}
+    for sources in ([bad, good], [good, bad]):
+        params = copy.deepcopy(GOOD_PARAMS)
+        params["source_model_list"] = ["SERSIC_ELLIPSE", "SERSIC_ELLIPSE"]
+        params["kwargs_source"] = sources
+        res = validate_parameters(LensParameterSet.model_validate(params))
+        assert res.passed is False
+        assert res.checks["sersic_radius"] is False
+        assert any("R_sersic=-1.0" in m for m in res.messages)
+
+
 def test_validator_exposure_and_background():
     res = validate_parameters(
         _params(kwargs_data={"numPix": 64, "deltaPix": 0.08,
