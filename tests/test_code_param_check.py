@@ -170,3 +170,19 @@ def test_assignments_are_read_in_source_order():
     comp = compare_code_to_params(program, _PARAMS)
     assert not comp.passed
     assert {d.field: d.actual for d in comp.diverged}.get("kwargs_lens[0].theta_E") == 2.5
+
+
+def test_grid_size_is_read_from_keywords_in_either_spelling():
+    # Only the first two positional arguments of data_configure_simple were
+    # read, so keyword calls were reported missing. 1.9.2 spells the keywords
+    # numPix/deltaPix; lenstronomy 1.14.1+ spells them num_pix/delta_pix.
+    base = "".join(line + "\n" for line in _MATCHING_PROGRAM.splitlines()
+                   if not line.startswith(("numPix", "deltaPix")))
+    call = ("kwargs_data = data_configure_simple({n}=64, {d}=0.08, "
+            "exposure_time=exposure_time, background_rms=background_rms)\n")
+    for n, d in (("numPix", "deltaPix"), ("num_pix", "delta_pix")):
+        comp = compare_code_to_params(base + call.format(n=n, d=d), _PARAMS)
+        assert comp.passed, (n, comp.messages)
+        assert "numPix" in comp.matched and "deltaPix" in comp.matched
+        wrong = compare_code_to_params(base + call.format(n=n, d=d).replace("=64", "=128"), _PARAMS)
+        assert "numPix" in [c.field for c in wrong.diverged]
