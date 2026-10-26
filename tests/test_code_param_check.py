@@ -186,3 +186,26 @@ def test_grid_size_is_read_from_keywords_in_either_spelling():
         assert "numPix" in comp.matched and "deltaPix" in comp.matched
         wrong = compare_code_to_params(base + call.format(n=n, d=d).replace("=64", "=128"), _PARAMS)
         assert "numPix" in [c.field for c in wrong.diverged]
+
+
+def test_the_kwargs_passed_to_image_are_the_ones_checked():
+    # kwargs_lens/kwargs_source were read from assignments to those names, so a
+    # script could define the validated list, render a different one, and pass.
+    wrong = [dict(GOOD_PARAMS["kwargs_lens"][0], theta_E=2.5)]
+    base = _MATCHING_PROGRAM + f"kwargs_lens_render = {wrong!r}\n"
+    for call in ("image_model.image(kwargs_lens=kwargs_lens_render, kwargs_source=kwargs_source)",
+                 "image_model.image(kwargs_lens_render, kwargs_source)"):
+        comp = compare_code_to_params(base + f"image = {call}\n", _PARAMS)
+        assert not comp.passed, call
+        assert {d.field: d.actual for d in comp.diverged}.get("kwargs_lens[0].theta_E") == 2.5
+
+    # The cheat-sheet's own call shape still passes, and a computed argument
+    # is reported as unresolved rather than guessed.
+    ok = compare_code_to_params(
+        _MATCHING_PROGRAM + "image = image_model.image(kwargs_lens=kwargs_lens, kwargs_source=kwargs_source)\n",
+        _PARAMS)
+    assert ok.passed, ok.messages
+    computed = compare_code_to_params(
+        _MATCHING_PROGRAM + "image = image_model.image(kwargs_lens=make_lens(), kwargs_source=kwargs_source)\n",
+        _PARAMS)
+    assert "kwargs_lens" in computed.unresolved
