@@ -176,6 +176,13 @@ def test_validator_snr_negative_amp_fails_instead_of_crashing():
     assert any("raise source amp" in m for m in res.messages)
 
 
+def test_validator_psf_type_must_be_one_lenstronomy_accepts():
+    res = validate_parameters(_params(kwargs_psf={"psf_type": "GAUSIAN", "fwhm": 0.15, "pixel_size": 0.08}))
+    assert res.checks["psf_type"] is False
+    assert any("GAUSIAN" in m and "NONE" in m for m in res.messages)
+    assert validate_parameters(_params()).checks["psf_type"] is True
+
+
 def test_blurred_centre_matches_the_gaussian_closed_form():
     from dlens.tools._param_validator import _blurred_centre
 
