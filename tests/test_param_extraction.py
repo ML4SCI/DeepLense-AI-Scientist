@@ -194,6 +194,20 @@ def test_validator_profiles_are_checked_against_their_own_component():
     assert res.checks["lens_profile_0_known"] is False
 
 
+def test_validator_combined_ellipticity_must_stay_below_one():
+    # Each component is within a 0.8 bound, but |e| = 1.13 has no axis ratio.
+    wide = ValidationRanges(ellipticity_max=0.8)
+    bad = copy.deepcopy(GOOD_PARAMS)
+    bad["kwargs_lens"][0].update(e1=0.8, e2=0.8)
+    res = validate_parameters(LensParameterSet.model_validate(bad), wide)
+    assert res.checks["ellipticity"] is False
+    assert any("sqrt(e1^2 + e2^2) = 1.13" in m for m in res.messages)
+
+    strong = copy.deepcopy(GOOD_PARAMS)
+    strong["kwargs_lens"][0].update(e1=0.6, e2=0.6)  # |e| = 0.85: extreme but valid
+    assert validate_parameters(LensParameterSet.model_validate(strong), wide).checks["ellipticity"] is True
+
+
 def test_blurred_centre_matches_the_gaussian_closed_form():
     from dlens.tools._param_validator import _blurred_centre
 

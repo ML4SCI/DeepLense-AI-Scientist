@@ -340,13 +340,26 @@ def validate_parameters(
         for k in ("e1", "e2")
         if k in kw and abs(kw[k]) > r.ellipticity_max
     ]
+    # Each component can be in range while the pair is not: the axis ratio is
+    # (1 - |e|) / (1 + |e|), so |e| = sqrt(e1^2 + e2^2) must stay below 1.
+    e_degenerate = [
+        (name, i, math.hypot(kw.get("e1", 0.0), kw.get("e2", 0.0)))
+        for name, kws in (("lens", params.kwargs_lens), ("source", params.kwargs_source))
+        for i, kw in enumerate(kws)
+        if ("e1" in kw or "e2" in kw) and math.hypot(kw.get("e1", 0.0), kw.get("e2", 0.0)) >= 1
+    ]
     if any("e1" in kw or "e2" in kw for kw in params.kwargs_lens + params.kwargs_source):
         if e_bad:
             name, k, v = e_bad[0]
             fail("ellipticity",
                  f"{name} {k}={v} exceeds |e|<={r.ellipticity_max} (axis ratio would "
                  "be extreme); use param_util.phi_q2_ellipticity with q>~1/3.")
-        else:
+        if e_degenerate:
+            name, i, mag = e_degenerate[0]
+            fail("ellipticity",
+                 f"kwargs_{name}[{i}] has sqrt(e1^2 + e2^2) = {mag:.3g} >= 1, which has no "
+                 "positive axis ratio; use param_util.phi_q2_ellipticity with q>~1/3.")
+        if not e_bad and not e_degenerate:
             ok("ellipticity")
 
     # --- Sersic index / radius ----------------------------------------------
