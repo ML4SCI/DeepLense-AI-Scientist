@@ -42,6 +42,21 @@ PROFILE_PARAMS: dict[str, list[str]] = {
     "GAUSSIAN": ["amp", "sigma", "center_x", "center_y"],
 }
 
+# The arguments each profile's lenstronomy ``function`` takes without a default
+# (introspected from 1.9.2; identical in 1.14.2). Leaving one out makes
+# lenstronomy raise a TypeError at render time. The remaining names (centres,
+# the shear origin) default to 0.
+REQUIRED_PARAMS: dict[str, list[str]] = {
+    "SIE": ["theta_E", "e1", "e2"],
+    "SIS": ["theta_E"],
+    "EPL": ["theta_E", "gamma", "e1", "e2"],
+    "SHEAR": ["gamma1", "gamma2"],
+    "NFW": ["Rs", "alpha_Rs"],
+    "SERSIC": ["amp", "R_sersic", "n_sersic"],
+    "SERSIC_ELLIPSE": ["amp", "R_sersic", "n_sersic", "e1", "e2"],
+    "GAUSSIAN": ["amp", "sigma"],
+}
+
 
 @dataclass
 class ValidationRanges:
@@ -102,6 +117,7 @@ class ValidationRanges:
     # peak. Heuristic for very non-recipe geometries.
     lensing_boost: float = 5.9
     profile_params: dict[str, list[str]] = field(default_factory=lambda: PROFILE_PARAMS)
+    required_params: dict[str, list[str]] = field(default_factory=lambda: REQUIRED_PARAMS)
 
 
 def _estimate_snr(params: LensParameterSet, boost: float) -> float | None:
@@ -186,11 +202,17 @@ def validate_parameters(
                      f"{sorted(r.profile_params)}.")
                 continue
             unknown_keys = sorted(set(kw) - set(known))
+            required = r.required_params.get(name, [])
+            missing_keys = [k for k in required if k not in kw]
             if unknown_keys:
                 fail(f"{label}_profile_{i}_keys",
                      f"{name} kwargs contain unknown key(s) {unknown_keys}; 1.9.2 "
                      f"accepts exactly {known}. Check for version-blended names.")
-            else:
+            if missing_keys:
+                fail(f"{label}_profile_{i}_keys",
+                     f"{name} kwargs are missing required key(s) {missing_keys}; "
+                     f"lenstronomy needs {required} and defaults the rest to 0.")
+            if not unknown_keys and not missing_keys:
                 ok(f"{label}_profile_{i}_keys")
 
     # --- Einstein radius ----------------------------------------------------

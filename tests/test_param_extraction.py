@@ -229,3 +229,51 @@ def test_validator_checks_every_lens_profile_einstein_radius():
     assert res.passed is False
     assert res.checks["einstein_radius"] is False
     assert any("kwargs_lens[1]" in m and "theta_E=40.0" in m for m in res.messages)
+
+
+def test_validator_requires_each_profiles_required_keys():
+    # Only unknown keys used to be rejected, so an SIE with no theta_E passed;
+    # lenstronomy then raises a TypeError when it renders.
+    no_theta = copy.deepcopy(GOOD_PARAMS)
+    del no_theta["kwargs_lens"][0]["theta_E"]
+    res = validate_parameters(LensParameterSet.model_validate(no_theta))
+    assert res.passed is False
+    assert res.checks["lens_profile_0_keys"] is False
+    assert any("missing required key(s) ['theta_E']" in m for m in res.messages)
+
+    no_gamma2 = copy.deepcopy(GOOD_PARAMS)
+    no_gamma2["lens_model_list"] = ["SIE", "SHEAR"]
+    no_gamma2["kwargs_lens"].append({"gamma1": 0.02})
+    res = validate_parameters(LensParameterSet.model_validate(no_gamma2))
+    assert res.checks["lens_profile_1_keys"] is False
+
+    # Centres and the shear origin default to 0 in lenstronomy, so they stay optional.
+    centred = copy.deepcopy(GOOD_PARAMS)
+    centred["lens_model_list"] = ["SIE", "SHEAR"]
+    centred["kwargs_lens"].append({"gamma1": 0.02, "gamma2": 0.0})
+    for kw in centred["kwargs_lens"] + centred["kwargs_source"]:
+        kw.pop("center_x", None)
+        kw.pop("center_y", None)
+    res = validate_parameters(LensParameterSet.model_validate(centred))
+    assert res.passed, res.messages
+
+
+def test_required_keys_are_all_named_in_the_extraction_prompt():
+    # The stricter key check must never reject a profile written the way the
+    # extraction prompt tells the agent to write it.
+    import re
+
+    from dlens.prompts._param_extraction import PARAM_EXTRACTION_SYSTEM_PROMPT
+    from dlens.tools._param_validator import PROFILE_PARAMS, REQUIRED_PARAMS
+
+    # Prompt lines read "SIE: theta_E, e1, e2, center_x, center_y"; a trailing
+    # "(optionally ...)" lists keys the agent may leave out.
+    prompted = {
+        m.group(1): {k.strip() for k in m.group(2).split(",") if k.strip()}
+        for m in re.finditer(r"\b([A-Z_]+): ([A-Za-z0-9_, ]+)", PARAM_EXTRACTION_SYSTEM_PROMPT)
+        if m.group(1) in PROFILE_PARAMS
+    }
+    assert set(prompted) == set(PROFILE_PARAMS)
+    for name, required in REQUIRED_PARAMS.items():
+        assert set(required) <= prompted[name], name
+        assert set(required) <= set(PROFILE_PARAMS[name]), name
