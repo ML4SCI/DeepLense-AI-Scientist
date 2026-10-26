@@ -10,7 +10,7 @@ Resolution rules (in order):
 * literals (including unary minus and constant-folding of + - * / ** on
   resolved operands, so ``10**3`` and ``-0.1`` work);
 * names resolved through a symbol table built from simple ``name = value``
-  assignments in source order.
+  assignments, walked depth-first in source order so the last assignment wins.
 Anything else (function calls, loop variables, attribute reads) is reported as
 UNRESOLVED — never guessed, and unresolved values do NOT pass.
 
@@ -29,7 +29,7 @@ Where each field is looked for:
 from __future__ import annotations
 
 import ast
-from typing import Any, Optional
+from typing import Any, Iterator, Optional
 
 from dlens.schemas._lens_params import CodeParamComparison, FieldComparison, LensParameterSet
 
@@ -118,16 +118,25 @@ def _call_name(call: ast.Call) -> str:
     return ""
 
 
+def _in_source_order(tree: ast.AST) -> Iterator[ast.AST]:
+    """Yield every node depth-first in source order (``ast.walk`` is breadth-first)."""
+    stack = [tree]
+    while stack:
+        node = stack.pop()
+        yield node
+        stack.extend(reversed(list(ast.iter_child_nodes(node))))
+
+
 def extract_lenstronomy_inputs(code: str) -> _Extracted:
     """Walk the script and recover the lenstronomy input values."""
     tree = ast.parse(code)
     symbols: dict[str, Any] = {}
     found = _Extracted()
 
-    for node in ast.walk(tree):
-        # Symbol table: simple single-target assignments, source order is fine
-        # for generated scripts (ast.walk is close enough; shadowing is rare
-        # in single-shot generated code).
+    for node in _in_source_order(tree):
+        # Symbol table: simple single-target assignments. Walking in source
+        # order means a later assignment replaces an earlier one, even when
+        # the earlier one is nested in a block.
         if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(
             node.targets[0], ast.Name
         ):

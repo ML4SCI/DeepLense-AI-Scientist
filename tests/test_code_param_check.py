@@ -156,3 +156,17 @@ def test_two_stage_fails_when_divergence_persists():
     assert res.codegen_passes == 2
     assert res.codegen is not None and res.codegen.ok  # sandbox fine; params diverged
     assert not res.code_param_comparison.passed
+
+
+def test_assignments_are_read_in_source_order():
+    # ast.walk is breadth-first, so a correct kwargs_lens nested in a block used
+    # to win over a later, wrong top-level reassignment.
+    wrong = [dict(GOOD_PARAMS["kwargs_lens"][0], theta_E=2.5)]
+    good_line = f"kwargs_lens = {GOOD_PARAMS['kwargs_lens']!r}\n"
+    program = _MATCHING_PROGRAM.replace(
+        good_line, f"if True:\n    {good_line}kwargs_lens = {wrong!r}\n"
+    )
+    assert program != _MATCHING_PROGRAM
+    comp = compare_code_to_params(program, _PARAMS)
+    assert not comp.passed
+    assert {d.field: d.actual for d in comp.diverged}.get("kwargs_lens[0].theta_E") == 2.5
