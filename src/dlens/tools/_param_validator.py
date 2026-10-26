@@ -58,6 +58,13 @@ REQUIRED_PARAMS: dict[str, list[str]] = {
     "GAUSSIAN": ["amp", "sigma"],
 }
 
+# Which profiles each model list may use: LensModel rejects the light profiles and
+# LightModel the lens profiles (lenstronomy raises a ValueError at construction).
+COMPONENT_PROFILES: dict[str, list[str]] = {
+    "lens": ["SIE", "SIS", "EPL", "SHEAR", "NFW"],
+    "source": ["SERSIC", "SERSIC_ELLIPSE", "GAUSSIAN"],
+}
+
 # The psf_type values lenstronomy's PSF accepts; anything else raises a ValueError.
 PSF_TYPES = ("GAUSSIAN", "PIXEL", "NONE")
 
@@ -122,6 +129,7 @@ class ValidationRanges:
     snr_noise_excess: float = 1.35
     profile_params: dict[str, list[str]] = field(default_factory=lambda: PROFILE_PARAMS)
     required_params: dict[str, list[str]] = field(default_factory=lambda: REQUIRED_PARAMS)
+    component_profiles: dict[str, list[str]] = field(default_factory=lambda: COMPONENT_PROFILES)
 
 
 _FWHM_TO_SIGMA = 1.0 / (2.0 * math.sqrt(2.0 * math.log(2.0)))
@@ -287,13 +295,17 @@ def validate_parameters(
                  f"{len(kwargs)} dicts — lenstronomy pairs them positionally, one dict "
                  "per profile.")
             continue
+        other = "source" if label == "lens" else "lens"
+        allowed = [p for p in r.component_profiles[label] if p in r.profile_params]
         for i, (name, kw) in enumerate(zip(models, kwargs)):
-            known = r.profile_params.get(name)
-            if known is None:
+            if name not in allowed:
+                where = (f" '{name}' is a {other} profile."
+                         if name in r.component_profiles[other] else "")
                 fail(f"{label}_profile_{i}_known",
                      f"Unknown {label} profile '{name}' — supported (1.9.2-verified): "
-                     f"{sorted(r.profile_params)}.")
+                     f"{allowed}.{where}")
                 continue
+            known = r.profile_params[name]
             unknown_keys = sorted(set(kw) - set(known))
             required = r.required_params.get(name, [])
             missing_keys = [k for k in required if k not in kw]

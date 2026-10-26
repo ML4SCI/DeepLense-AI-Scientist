@@ -183,6 +183,17 @@ def test_validator_psf_type_must_be_one_lenstronomy_accepts():
     assert validate_parameters(_params()).checks["psf_type"] is True
 
 
+def test_validator_profiles_are_checked_against_their_own_component():
+    res = validate_parameters(_params(source_model_list=["SIE"],
+                                      kwargs_source=[{"theta_E": 1.0, "e1": 0.1, "e2": 0.0}]))
+    assert res.checks["source_profile_0_known"] is False
+    assert any("'SIE' is a lens profile" in m for m in res.messages)
+
+    res = validate_parameters(_params(lens_model_list=["SERSIC"],
+                                      kwargs_lens=[{"amp": 1.0, "R_sersic": 0.3, "n_sersic": 1.0}]))
+    assert res.checks["lens_profile_0_known"] is False
+
+
 def test_blurred_centre_matches_the_gaussian_closed_form():
     from dlens.tools._param_validator import _blurred_centre
 
