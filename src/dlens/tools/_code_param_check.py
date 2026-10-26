@@ -110,7 +110,16 @@ def _resolve(node: ast.AST, symbols: dict[str, Any]) -> Any:
     if isinstance(node, ast.Dict):
         out: dict[Any, Any] = {}
         for k, v in zip(node.keys, node.values):
-            key = _resolve(k, symbols) if k is not None else UNRESOLVED
+            if k is None:
+                # **mapping: merged in order, so it can override an earlier key.
+                mapping = _resolve(v, symbols)
+                if not isinstance(mapping, dict):
+                    return UNRESOLVED
+                out.update(mapping)
+                continue
+            key = _resolve(k, symbols)
+            if key == UNRESOLVED or not isinstance(key, (str, int, float, bool, type(None))):
+                return UNRESOLVED  # an unknown key could override any of the others
             out[key] = _resolve(v, symbols)
         return out
     return UNRESOLVED
@@ -261,6 +270,9 @@ def compare_code_to_params(code: str, params: LensParameterSet) -> CodeParamComp
             unresolved.append(label)
             continue
         for i, exp_dict in enumerate(expected_kwargs):
+            if i < len(actual_kwargs) and actual_kwargs[i] == UNRESOLVED:
+                unresolved.append(f"{label}[{i}]")
+                continue
             if i >= len(actual_kwargs) or not isinstance(actual_kwargs[i], dict):
                 missing.append(f"{label}[{i}]")
                 continue

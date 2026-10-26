@@ -209,3 +209,55 @@ def test_the_kwargs_passed_to_image_are_the_ones_checked():
         _MATCHING_PROGRAM + "image = image_model.image(kwargs_lens=make_lens(), kwargs_source=kwargs_source)\n",
         _PARAMS)
     assert "kwargs_lens" in computed.unresolved
+
+
+# The shape the codegen cheat-sheet asks for: every value reaches lenstronomy
+# through the calls that build and render the image.
+_IMAGE_MODEL_PROGRAM = """\
+import sys
+import lenstronomy.Util.simulation_util as sim_util
+from lenstronomy.Data.imaging_data import ImageData
+from lenstronomy.Data.psf import PSF
+from lenstronomy.ImSim.image_model import ImageModel
+from lenstronomy.LensModel.lens_model import LensModel
+from lenstronomy.LightModel.light_model import LightModel
+
+numPix = 64
+deltaPix = 0.08
+kwargs_data = sim_util.data_configure_simple(numPix, deltaPix, exposure_time=5400.0, background_rms=0.01)
+data_class = ImageData(**kwargs_data)
+psf_class = PSF(psf_type='GAUSSIAN', fwhm=0.15, pixel_size=deltaPix)
+lens_model_list = ['SIE']
+kwargs_lens = [{'theta_E': 1.0, 'e1': 0.1, 'e2': 0.0, 'center_x': 0.0, 'center_y': 0.0}]
+source_model_list = ['SERSIC_ELLIPSE']
+kwargs_source = [{'amp': 12.0, 'R_sersic': 0.3, 'n_sersic': 1.5, 'e1': 0.1, 'e2': 0.0,
+                  'center_x': 0.05, 'center_y': 0.05}]
+image_model = ImageModel(data_class, psf_class,
+                         lens_model_class=LensModel(lens_model_list=lens_model_list),
+                         source_model_class=LightModel(light_model_list=source_model_list),
+                         kwargs_numerics={'supersampling_factor': 1})
+image = image_model.image(kwargs_lens=kwargs_lens, kwargs_source=kwargs_source)
+"""
+_LENS = "kwargs_lens = [{'theta_E': 1.0"
+_WRONG_LENS = "kwargs_lens = [{'theta_E': 2.5, 'e1': 0.1, 'e2': 0.0, 'center_x': 0.0, 'center_y': 0.0}]\n"
+
+
+def _diverged(comp) -> dict:
+    return {c.field: c.actual for c in comp.diverged}
+
+
+def test_dict_unpacking_is_applied_in_order():
+    # {'theta_E': 1.0, **{'theta_E': 2.5}} renders 2.5; the override must not be ignored.
+    comp = compare_code_to_params(_IMAGE_MODEL_PROGRAM.replace(
+        _LENS, "kwargs_lens = [{'theta_E': 1.0, **{'theta_E': 2.5}"), _PARAMS)
+    assert _diverged(comp) == {"kwargs_lens[0].theta_E": 2.5}
+
+    comp = compare_code_to_params(_IMAGE_MODEL_PROGRAM.replace(
+        _LENS, "key = pick()\nkwargs_lens = [{key: 2.5, 'theta_E': 1.0"), _PARAMS)
+    assert "kwargs_lens[0]" in comp.unresolved
+
+    comp = compare_code_to_params(_IMAGE_MODEL_PROGRAM.replace(
+        "kwargs_lens = [{'theta_E': 1.0, 'e1': 0.1, 'e2': 0.0, 'center_x': 0.0, 'center_y': 0.0}]",
+        "base = {'e1': 0.1, 'e2': 0.0, 'center_x': 0.0, 'center_y': 0.0}\n"
+        "kwargs_lens = [{**base, 'theta_E': 1.0}]"), _PARAMS)
+    assert comp.passed, comp.messages
