@@ -232,7 +232,7 @@ def _estimate_snr(params: LensParameterSet, noise_excess: float) -> float | None
     data = params.kwargs_data
     if data.exposure_time is None or data.background_rms is None:
         return None
-    if data.exposure_time <= 0 or data.background_rms <= 0:
+    if data.exposure_time <= 0 or data.background_rms <= 0 or data.deltaPix <= 0:
         return None  # covered by their own checks
     psf = params.kwargs_psf
     fwhm = psf.fwhm if psf.psf_type != "NONE" and psf.fwhm and psf.fwhm > 0 else 0.0

@@ -208,6 +208,14 @@ def test_validator_combined_ellipticity_must_stay_below_one():
     assert validate_parameters(LensParameterSet.model_validate(strong), wide).checks["ellipticity"] is True
 
 
+def test_validator_snr_skipped_for_a_nonpositive_pixel_scale():
+    res = validate_parameters(_params(
+        kwargs_data={"numPix": 64, "deltaPix": 0.0, "exposure_time": 5400.0, "background_rms": 0.01},
+        kwargs_psf={"psf_type": "NONE"}))
+    assert res.checks["deltapix"] is False
+    assert res.snr_estimate is None and "snr" not in res.checks
+
+
 def test_blurred_centre_matches_the_gaussian_closed_form():
     from dlens.tools._param_validator import _blurred_centre
 
