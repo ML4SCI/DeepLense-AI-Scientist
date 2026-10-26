@@ -102,6 +102,32 @@ def test_loop_gap_closed_guard_skips_planner():
     assert "gap closed" in state.runs[0].planner_decision.rationale
 
 
+def test_loop_stops_cleanly_on_invalid_planner_params():
+    # dropout=1.0 passes the planner's schema (updated_params is a free dict) but
+    # fails TrainingConfig validation (lt=1). The loop must end like a guard stop
+    # and hand back the completed runs instead of raising.
+    decisions = [
+        {"action": "train", "rationale": "Large train/val gap -> maximum dropout.",
+         "updated_params": {"dropout": 1.0}},
+        {"action": "train", "rationale": "never reached", "updated_params": {"augment": True}},
+    ]
+    loop = ExperimentLoop(
+        strategy=_scripted_strategy(decisions),
+        train_backend=MockTrainBackend(),
+        infer_backend=MockInferBackend(),
+    )
+    state = asyncio.run(loop.run(
+        hypothesis="h", train_ref=_ref(), val_ref=_ref(),
+        architecture=_arch(), training_config=_cfg(),
+        max_iterations=4, gap_threshold=0.06, patience=3,
+    ))
+    assert len(state.runs) == 1  # the completed run is kept
+    last = state.runs[-1].planner_decision
+    assert last.action == PlannerAction.REPORT
+    assert "[loop guard]" in last.rationale
+    assert "dropout" in last.rationale
+
+
 def test_apply_validates_and_ignores_unknown_keys():
     arch, cfg = _apply(
         {"name": "resnet34", "dropout": 0.3, "bogus_key": 1}, _arch(), _cfg()
