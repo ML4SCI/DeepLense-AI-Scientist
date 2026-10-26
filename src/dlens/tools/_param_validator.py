@@ -194,16 +194,16 @@ def validate_parameters(
                 ok(f"{label}_profile_{i}_keys")
 
     # --- Einstein radius ----------------------------------------------------
-    thetas = [kw["theta_E"] for kw in params.kwargs_lens if "theta_E" in kw]
-    if thetas:
-        t = thetas[0]
-        if r.theta_e_min <= t <= r.theta_e_max:
-            ok("einstein_radius")
-        else:
-            fail("einstein_radius",
-                 f"theta_E={t} arcsec outside [{r.theta_e_min}, {r.theta_e_max}]; "
-                 "galaxy-scale lenses are typically ~0.5–3 arcsec (canonical DeepLense "
-                 "configuration is ~1 arcsec).")
+    # Every lens profile with a theta_E is checked; any one out of range fails.
+    thetas = [(i, kw["theta_E"]) for i, kw in enumerate(params.kwargs_lens) if "theta_E" in kw]
+    bad_thetas = [(i, t) for i, t in thetas if not r.theta_e_min <= t <= r.theta_e_max]
+    for i, t in bad_thetas:
+        fail("einstein_radius",
+             f"kwargs_lens[{i}] theta_E={t} arcsec outside [{r.theta_e_min}, {r.theta_e_max}]; "
+             "galaxy-scale lenses are typically ~0.5–3 arcsec (canonical DeepLense "
+             "configuration is ~1 arcsec).")
+    if thetas and not bad_thetas:
+        ok("einstein_radius")
 
     # --- ellipticity (lens + source e1/e2) ----------------------------------
     e_bad = [

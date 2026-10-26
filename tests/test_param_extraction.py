@@ -216,3 +216,16 @@ def test_two_stage_gives_up_after_bounded_retries():
     assert not res.ok
     assert res.extraction_attempts == 2
     assert res.codegen is None  # codegen never ran on unvalidated parameters
+
+
+def test_validator_checks_every_lens_profile_einstein_radius():
+    # Only the first profile with a theta_E used to be checked, so a bad
+    # second profile passed.
+    good = GOOD_PARAMS["kwargs_lens"][0]
+    params = copy.deepcopy(GOOD_PARAMS)
+    params["lens_model_list"] = ["SIE", "SIE"]
+    params["kwargs_lens"] = [dict(good), {**good, "theta_E": 40.0}]
+    res = validate_parameters(LensParameterSet.model_validate(params))
+    assert res.passed is False
+    assert res.checks["einstein_radius"] is False
+    assert any("kwargs_lens[1]" in m and "theta_E=40.0" in m for m in res.messages)
