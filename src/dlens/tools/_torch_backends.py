@@ -178,7 +178,8 @@ class TorchTrainBackend:
         return self._seed
 
     def train(
-        self, dataset: DatasetRef, architecture: ArchitectureSpec, config: TrainingConfig
+        self, dataset: DatasetRef, architecture: ArchitectureSpec, config: TrainingConfig,
+        *, resume_from: str | None = None,
     ) -> TrainResult:
         torch = _require_torch()
         from torch import nn
@@ -216,6 +217,20 @@ class TorchTrainBackend:
             torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=config.epochs)
             if config.lr_scheduler == "cosine" else None
         )
+        if resume_from is not None:
+            checkpoint = torch.load(resume_from, map_location=device, weights_only=False)
+            expected = {
+                "architecture": architecture.model_dump(mode="json"),
+                "class_names": dataset.class_names,
+                "dataset_root": str(Path(dataset.root).resolve()),
+                "seed": self._seed,
+                "training": config.model_dump(exclude={"epochs"}),
+            }
+            actual = {key: checkpoint.get(key) for key in expected}
+            if actual != expected:
+                mismatches = [key for key in expected if actual[key] != expected[key]]
+                raise ValueError("Incompatible checkpoint; mismatched: " + ", ".join(mismatches))
+            model.load_state_dict(checkpoint["state_dict"])
         loss_fn = nn.CrossEntropyLoss()
 
         def _augment(xb):
@@ -286,6 +301,9 @@ class TorchTrainBackend:
                 "dropout": config.dropout,
                 "mean": mean, "std": std,
                 "class_names": dataset.class_names,
+                "dataset_root": str(Path(dataset.root).resolve()),
+                "seed": self._seed,
+                "training": config.model_dump(exclude={"epochs"}),
             },
             weights_path,
         )
