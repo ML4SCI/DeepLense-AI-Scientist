@@ -57,14 +57,35 @@ peak-pixel measurement lands at ~18, which IS the same scale as ~25 — so
 peak-pixel is evidently the definition family the recipe means, and what was
 actually missing was the lensing amplification.
 
-The estimator is now **peak-pixel x an empirical lensing boost of 5.9**,
+The estimator was first **peak-pixel x an empirical lensing boost of 5.9**,
 calibrated so canonical recipe parameters (amp=20, deltaPix=0.05,
-background_rms=1e-2, lens.py L196/L229-233) reproduce the measured median. Check:
-the recipe's own exposure draw `10**U(3, 3.5)` (lens.py L230) then predicts SNR
-14.8 / 18.1 / 21.2 at t = 1000 / 1778 / 3162 s — against measured p5/median/p95 of
-14.8 / 18.1 / 22.0. The acceptance band is [14, 60]: floor = measured p5 (which is
-also exactly the recipe's lowest-exposure prediction), ceiling = a ~3x-p95
-runaway-amp guard (heuristic).
+background_rms=1e-2, lens.py L196/L229-233) reproduce the measured median. That
+matched real images, but 5.9 is mostly the n=1 Sersic's centre-to-R_sersic
+brightness ratio exp(b_1) = 5.3, so it misjudged every other Sersic index: the
+peak came out 2-3x too bright below n=1 and ~3x too faint above n=2.
+
+It now predicts the brightest pixel from the source profile itself:
+- **signal:** the profile's centre blurred by the PSF and the pixel. A Sersic's
+  amp is its brightness at R_sersic, rising toward amp x exp(b_n) at the centre
+  (flattened inside 0.001", as lenstronomy 1.9.2 does). In the source plane
+  the lens shrinks that blur along the arc by its tangential stretch, treated as
+  an SIS (mu_t = 1 + theta_E / beta), so a stretched source keeps more of its
+  central light. A Gaussian source (amp = total flux) has a closed form.
+- **noise:** the recipe's, which clips the Gaussian background at zero before
+  its Poisson draw, so the corners the SNR is measured from are quieter than
+  the arc. One calibrated constant (`snr_noise_excess` = 1.35, how far the
+  noisy brightest pixel sits above the noiseless peak) makes canonical recipe
+  parameters reproduce the measured median.
+
+Check: the recipe's draws of exposure `10**U(3, 3.5)` (lens.py L230) and source
+centre then predict p5 / median / p95 of 14.7 / 18.1 / 21.7, against measured
+14.8 / 18.1 / 22.0. Against 500 lenstronomy renders with random pixel scales
+(0.03-0.2"), PSFs, backgrounds and n_sersic 0.5-6, the estimate's median error is
+within 2% up to n=4.5; its scatter grows with n (p5-p95 within 10% below n=1,
+25% at n=2-3) because without supersampling a sub-pixel cusp lands at a random
+offset from the pixel centres. No rendering happens at validation time (~0.1 ms
+per source). The acceptance band is [14, 60]: floor = measured p5, ceiling = a
+~3x-p95 runaway-amp guard (heuristic).
 
 **Flag for Lucca:** real DeepLenseSim Model_I images measure ~18 peak SNR — a
 strict ">= 25" threshold would reject *every real image the recipe produces*.
@@ -92,7 +113,7 @@ real-image statistics above; `1.9.2` = introspected lenstronomy;
 | axion mass | 1e-24–1e-22 eV | derived EXACTLY: recipe draw 10**U(-24,-22) (Model_I/sim_axion.py:12) |
 | vortex mass | 1e9–1e12 M_sun | **heuristic rails** around the FIXED recipe 3e10 (Model_I/sim_axion.py:17) |
 | profile names/keys | exact 1.9.2 param_names | introspected |
-| peak SNR | 14–60 (boost 5.9) | **measured** (900 real images); ceiling heuristic |
+| peak SNR | 14–60 (profile-aware estimate) | **measured** (900 real images); ceiling heuristic |
 
 Recipe facts recorded for completeness (not yet in `LensParameterSet`): CDM
 subhalos are 25 (Poisson) point masses drawn from 1e6–1e10 M_sun with beta=-0.9
@@ -122,9 +143,9 @@ cluster — I have no access.
 
 - **Michael's 10–20 ground-truth prompts -> lenstronomy input dictionaries** (the
   seam is unchanged: `LensParameterSet` fixtures + `params_to_codegen_notes()`).
-- **Lucca's exact SNR definition** — my peak-with-boost estimator is calibrated to
-  real Model_I images, but the boost (5.9) bakes in the recipe's geometry; and the
-  ~18-vs-25 discrepancy above needs his input.
+- **Lucca's exact SNR definition** — my estimator is calibrated to real Model_I
+  images and models the recipe's noise, so another noise model needs its own
+  calibration; and the ~18-vs-25 discrepancy above needs his input.
 - **Genuinely still heuristic:** redshift guards, ellipticity bound, Sersic upper
   bound, halo/vortex mass rails (recipe fixes single values — only Lucca's
   population distributions can turn these into real ranges), deltaPix margins,
