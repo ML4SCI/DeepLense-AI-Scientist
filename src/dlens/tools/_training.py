@@ -66,8 +66,13 @@ class CentroidTrainBackend:
         self, dataset: DatasetRef, architecture: ArchitectureSpec, config: TrainingConfig
     ) -> TrainResult:
         x, y = load_dataset(dataset)
-        xn, mu, sd = _standardize(x)
         k = dataset.num_classes
+        counts = np.bincount(y, minlength=k)
+        missing = [name for name, count in zip(dataset.class_names, counts) if count == 0]
+        if missing:
+            # An empty class would get a NaN centroid, which silently wins every argmin.
+            raise RuntimeError(f"No samples found under {dataset.root!r} for class(es) {missing}.")
+        xn, mu, sd = _standardize(x)
         centroids = np.stack([xn[y == c].mean(axis=0) for c in range(k)])
         # nearest-centroid train accuracy
         dists = np.linalg.norm(xn[:, None, :] - centroids[None, :, :], axis=2)
