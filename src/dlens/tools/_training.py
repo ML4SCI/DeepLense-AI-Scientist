@@ -22,6 +22,7 @@ from pydantic_ai import Agent, RunContext
 
 from dlens.schemas._downstream import DatasetRef, TrainResult
 from dlens.schemas._model_design import ArchitectureSpec, TrainingConfig
+from dlens.tools._provenance import make_provenance
 
 
 def load_dataset(ref: DatasetRef) -> tuple[np.ndarray, np.ndarray]:
@@ -86,6 +87,13 @@ class CentroidTrainBackend:
             num_classes=k,
             metrics={"train_accuracy": acc},
             epochs_run=config.epochs,
+            provenance=make_provenance(
+                backend=self.name,
+                device="cpu",
+                seed=None,
+                architecture=architecture,
+                training_config=config,
+            ),
         )
 
 
@@ -104,6 +112,13 @@ class MockTrainBackend:
             num_classes=dataset.num_classes,
             metrics={"train_accuracy": 0.9, "val_accuracy": 0.85},
             epochs_run=config.epochs,
+            provenance=make_provenance(
+                backend=self.name,
+                device="cpu",
+                seed=None,
+                architecture=architecture,
+                training_config=config,
+            ),
         )
 
 

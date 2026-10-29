@@ -21,6 +21,7 @@ import numpy as np
 
 from dlens.schemas._downstream import DatasetRef, InferResult, TrainResult
 from dlens.schemas._model_design import ArchitectureSpec, TrainingConfig
+from dlens.tools._provenance import make_provenance
 
 _BLOCKS_BY_NAME = {"resnet18": (2, 2, 2, 2), "resnet34": (3, 4, 6, 3)}
 
@@ -275,6 +276,13 @@ class TorchTrainBackend:
         if best_state is not None:
             model.load_state_dict(best_state)
 
+        provenance = make_provenance(
+            backend=self.name,
+            device=str(device),
+            seed=self._seed,
+            architecture=architecture,
+            training_config=config,
+        )
         run_id = str(uuid.uuid4())[:8]
         out_dir = Path(self._output_root) / run_id
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -286,6 +294,7 @@ class TorchTrainBackend:
                 "dropout": config.dropout,
                 "mean": mean, "std": std,
                 "class_names": dataset.class_names,
+                "provenance": provenance.model_dump(mode="json"),
             },
             weights_path,
         )
@@ -299,6 +308,7 @@ class TorchTrainBackend:
             num_classes=dataset.num_classes,
             metrics=metrics,
             epochs_run=epochs_run,
+            provenance=provenance,
         )
 
 
