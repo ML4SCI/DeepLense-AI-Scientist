@@ -259,6 +259,22 @@ A reference implementation showing how to wrap REST APIs as MCP tools, using NAS
 
 All model wrappers inherit from Pydantic AI's `OpenAIChatModel` (for OpenAI-compatible APIs).
 
+The `VLLMModel` and `LiteLLMModel` wrappers use OpenAI-compatible local
+endpoints. Constructing either wrapper only configures the provider; it does
+not contact a server.
+
+```python
+from dlens.agents import LiteLLMModel, VLLMModel
+
+vllm = VLLMModel(model_name="Qwen/Qwen3-8B", port="8000")
+litellm = LiteLLMModel(model_name="local-qwen", port="4000")
+```
+
+The default endpoints are `http://localhost:8000/v1/` for vLLM and
+`http://127.0.0.1:4000/v1/` for LiteLLM. The wrappers have offline contract
+tests; live provider checks require a locally running server and should be
+performed separately from the default test suite.
+
 ---
 
 ## 6. Design Principles
@@ -369,8 +385,8 @@ uv run pytest
 
 | Area | Description |
 |------|-------------|
-| VLLMModel | Integration not fully tested |
-| LiteLLMModel | Proxy configuration may vary |
+| VLLMModel | Live server compatibility depends on the local vLLM deployment |
+| LiteLLMModel | Live proxy compatibility depends on the local LiteLLM deployment |
 | Parallel Execution | Sub-agents run sequentially; parallel orchestration not implemented |
 | Caching | No built-in response caching |
 | Monitoring | Relies on loguru; no integrated observability stack |
