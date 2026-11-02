@@ -27,6 +27,7 @@ Every phase is timed (``timings``) for the demo-runtime estimate.
 
 from __future__ import annotations
 
+import math
 import time
 from typing import Any, Optional
 
@@ -269,7 +270,11 @@ class ArchitectureSearch:
             history.extend(zip(top, evals))
 
             round_spec, round_eval = self._best(top, evals)
-            if best_eval is None or round_eval.val_accuracy > best_eval.val_accuracy:
+            if (
+                best_eval is None
+                or not math.isfinite(best_eval.val_accuracy)
+                or round_eval.val_accuracy > best_eval.val_accuracy
+            ):
                 best_spec, best_eval = round_spec, round_eval
             print(f"[search] round-{rnd} winner: {round_eval.name} "
                   f"(val={round_eval.val_accuracy:.4f}); best so far: {best_eval.name} "
@@ -317,7 +322,11 @@ class ArchitectureSearch:
             ar = compute_analysis(ir, val_ref.class_names)
             dt = round(time.monotonic() - t0, 1)
             train_acc = float(tr.metrics.get("train_accuracy", float("nan")))
-            val_acc = float(ir.accuracy or float("nan"))
+            val_acc = float(ar.accuracy)
+            if not math.isfinite(val_acc):
+                raise ValueError(
+                    f"candidate {spec.name!r} produced a non-finite validation accuracy"
+                )
             evals.append(CandidateEval(
                 name=spec.name, params_m=_params_m(spec),
                 train_accuracy=train_acc, val_accuracy=val_acc,
@@ -325,13 +334,25 @@ class ArchitectureSearch:
                 train_seconds=dt,
             ))
             timings[f"{tag}_{spec.name}_s"] = dt
+            auc = (
+                "n/a"
+                if ar.macro_auc is None
+                else f"{ar.macro_auc:.4f}" if math.isfinite(ar.macro_auc) else "invalid"
+            )
             print(f"    [{tag}] {spec.name:<18} val={val_acc:.4f} gap={train_acc - val_acc:+.4f} "
-                  f"auc={ar.macro_auc:.4f} ({dt}s)", flush=True)
+                  f"auc={auc} ({dt}s)", flush=True)
         return evals
 
     @staticmethod
     def _best(
         specs: list[ArchitectureSpec], evals: list[CandidateEval]
     ) -> tuple[ArchitectureSpec, CandidateEval]:
-        idx = max(range(len(evals)), key=lambda i: evals[i].val_accuracy)
+        if not specs or not evals:
+            raise ValueError("architecture selection requires at least one candidate")
+        if len(specs) != len(evals):
+            raise ValueError("architecture specifications and evaluations must have the same length")
+        valid = [i for i, ev in enumerate(evals) if math.isfinite(ev.val_accuracy)]
+        if not valid:
+            raise ValueError("architecture selection requires at least one finite validation score")
+        idx = max(valid, key=lambda i: evals[i].val_accuracy)
         return specs[idx], evals[idx]

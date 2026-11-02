@@ -15,6 +15,7 @@ import argparse
 import asyncio
 import glob
 import json
+import math
 import os
 import time
 
@@ -26,6 +27,12 @@ from dlens.agents._models import OpenAIModel
 from dlens.schemas._downstream import DatasetRef
 from dlens.schemas._model_design import ArchFamily, ArchitectureSpec, TrainingConfig
 from dlens.tools._torch_backends import TorchInferBackend, TorchTrainBackend
+
+
+def _metric_text(value: float | None) -> str:
+    if value is None:
+        return "n/a"
+    return f"{value:.4f}" if math.isfinite(value) else "invalid"
 
 
 def _ref(root: str, classes: list[str]) -> DatasetRef:
@@ -86,16 +93,22 @@ async def main() -> int:
     print(f"{'it':>2} | {'change chosen':<38} | {'train':>6} | {'val':>6} | {'gap':>6} | {'auc':>6}")
     for run in state.runs:
         tr_acc = run.train_result.metrics.get("train_accuracy", float("nan"))
-        val_acc = run.infer_result.accuracy or float("nan")
-        auc = run.analysis_result.macro_auc or float("nan")
+        val_acc = run.infer_result.accuracy
+        auc = run.analysis_result.macro_auc
+        gap = (
+            tr_acc - val_acc
+            if val_acc is not None and math.isfinite(tr_acc) and math.isfinite(val_acc)
+            else None
+        )
         d = run.planner_decision
         change = "(baseline)" if run.iteration == 0 else "?"
         # the change shown on row i is what the PREVIOUS decision set up
         prev = state.runs[run.iteration - 1].planner_decision if run.iteration > 0 else None
         if prev is not None:
             change = json.dumps(prev.updated_params)[:38]
-        print(f"{run.iteration:>2} | {change:<38} | {tr_acc:.4f} | {val_acc:.4f} | "
-              f"{tr_acc - val_acc:.4f} | {auc:.4f}")
+        print(f"{run.iteration:>2} | {change:<38} | {_metric_text(tr_acc):>6} | "
+              f"{_metric_text(val_acc):>6} | {_metric_text(gap):>6} | "
+              f"{_metric_text(auc):>6}")
         if d is not None:
             print(f"     decision: {d.action.value} {json.dumps(d.updated_params)}")
             print(f"     reasoning: {d.rationale[:220]}")
