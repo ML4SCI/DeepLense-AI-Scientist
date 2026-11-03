@@ -17,7 +17,9 @@ Resolution rules (in order):
   ``data_configure_simple``, ``ImageData`` and ``ImageModel`` calls are followed
   through assignments.
 Anything else (other calls, loop variables, attribute reads) is reported as
-UNRESOLVED — never guessed, and unresolved values do NOT pass.
+UNRESOLVED — never guessed, and unresolved values do NOT pass. A None the script
+passes, explicitly or as lenstronomy's default, is compared like any other value;
+a field is missing only when nothing in the script sets it.
 
 The script is followed the way it runs. A branch whose condition is known
 statically (``if False:``, ``if DEBUG:`` with ``DEBUG = True``, ``if __name__ ==
@@ -81,7 +83,16 @@ _CONVENTIONAL = {"lens_model_list": "lens_model_list", "source_model_list": "sou
                  "kwargs_source": "kwargs_source"}
 
 _ABSENT = object()  # marks a key missing on one control-flow path
-_NOT_GIVEN = object()  # the rendering ImageModel was not passed that component
+
+
+class _Missing:
+    def __repr__(self) -> str:
+        return "<missing>"
+
+
+# Not found in the script (or not given to the rendering ImageModel), as distinct from
+# an explicit None, which is a value the script passes and is compared like any other.
+_MISSING = _Missing()
 _MAX_CALL_DEPTH = 20
 
 
@@ -94,20 +105,20 @@ class _Built:
 
 
 class _Extracted:
-    """What the AST walk recovered from the script (None = not found)."""
+    """What the AST walk recovered from the script (_MISSING = not found)."""
 
     def __init__(self) -> None:
-        self.lens_model_list: Any = None
-        self.source_model_list: Any = None
-        self.kwargs_lens: Any = None
-        self.kwargs_source: Any = None
-        self.numPix: Any = None
-        self.deltaPix: Any = None
-        self.exposure_time: Any = None
-        self.background_rms: Any = None
-        self.psf_type: Any = None
-        self.psf_fwhm: Any = None
-        self.psf_pixel_size: Any = None
+        self.lens_model_list: Any = _MISSING
+        self.source_model_list: Any = _MISSING
+        self.kwargs_lens: Any = _MISSING
+        self.kwargs_source: Any = _MISSING
+        self.numPix: Any = _MISSING
+        self.deltaPix: Any = _MISSING
+        self.exposure_time: Any = _MISSING
+        self.background_rms: Any = _MISSING
+        self.psf_type: Any = _MISSING
+        self.psf_fwhm: Any = _MISSING
+        self.psf_pixel_size: Any = _MISSING
 
 
 def _resolve(node: ast.AST, symbols: dict[str, Any]) -> Any:
@@ -233,7 +244,9 @@ def _build(call: ast.Call, symbols: dict[str, Any]) -> Any:
         for camel, snake in _GRID_ALIASES:
             if snake in args:
                 args[camel] = args.pop(snake)
-        return _Built(name, {k: args.get(k) for k in _PARAMETERS[name]})
+        # numPix and deltaPix are required; exposure_time and background_rms default to None.
+        return _Built(name, {k: args.get(k, _MISSING if k in ("numPix", "deltaPix") else None)
+                             for k in _PARAMETERS[name]})
     if name == "PSF":
         return _Built("PSF", {"psf_type": args.get("psf_type", _PSF_DEFAULT_TYPE),
                               "fwhm": args.get("fwhm"), "pixel_size": args.get("pixel_size")})
@@ -241,7 +254,7 @@ def _build(call: ast.Call, symbols: dict[str, Any]) -> Any:
         return _Built("ImageModel", {"data": args.get("data_class"), "psf": args.get("psf_class"),
                                      "lens": args.get("lens_model_class"),
                                      "source": args.get("source_model_class")})
-    return _Built(name, {"models": args.get(_PARAMETERS[name][0])})
+    return _Built(name, {"models": args.get(_PARAMETERS[name][0], _MISSING)})
 
 
 def _truth(node: ast.AST, symbols: dict[str, Any]) -> bool | None:
@@ -495,8 +508,8 @@ class _Walker:
             found[key] = UNRESOLVED if previous == UNRESOLVED else previous + (_build(call, state.symbols),)
         elif name == "image" and isinstance(call.func, ast.Attribute):
             args = _arguments(call, state.symbols, _PARAMETERS["image"])
-            found["rendered"] = {"kwargs_lens": args.get("kwargs_lens"),
-                                 "kwargs_source": args.get("kwargs_source"),
+            found["rendered"] = {"kwargs_lens": args.get("kwargs_lens", _MISSING),
+                                 "kwargs_source": args.get("kwargs_source", _MISSING),
                                  "image_model": _resolve(call.func.value, state.symbols)}
         if _is_exit_call(call):
             self.program_exits.append(state.copy())
@@ -573,7 +586,7 @@ def _component(image_model: Any, role: str, kind: str, found: dict[str, Any]) ->
     if isinstance(image_model, _Built):
         given = image_model.fields[role]
         if given is None:
-            return _NOT_GIVEN
+            return _MISSING
         return given if isinstance(given, _Built) and given.kind == kind else UNRESOLVED
     if image_model == UNRESOLVED:
         return UNRESOLVED
@@ -605,7 +618,8 @@ def extract_lenstronomy_inputs(code: str) -> _Extracted:
         if not (isinstance(image_model, _Built) and image_model.kind == "ImageModel"):
             image_model = UNRESOLVED  # the image() call's ImageModel cannot be identified
     else:
-        found.kwargs_lens, found.kwargs_source = f.get("assigned:kwargs_lens"), f.get("assigned:kwargs_source")
+        found.kwargs_lens = f.get("assigned:kwargs_lens", _MISSING)
+        found.kwargs_source = f.get("assigned:kwargs_source", _MISSING)
         image_model = _only(f.get("built:ImageModel"))
 
     for attr, role, kind in (("lens_model_list", "lens", "LensModel"),
@@ -616,7 +630,7 @@ def extract_lenstronomy_inputs(code: str) -> _Extracted:
         elif model == UNRESOLVED:
             setattr(found, attr, UNRESOLVED)
         elif model is None:
-            setattr(found, attr, f.get(f"assigned:{attr}"))
+            setattr(found, attr, f.get(f"assigned:{attr}", _MISSING))
 
     psf = _component(image_model, "psf", "PSF", f)
     if isinstance(psf, _Built):
@@ -631,14 +645,13 @@ def extract_lenstronomy_inputs(code: str) -> _Extracted:
         config = _only(f.get("built:data_configure_simple"))
     for attr, alias in (*_GRID_ALIASES, ("exposure_time", None), ("background_rms", None)):
         if isinstance(config, _Built):
-            value = config.fields[attr]
-        elif config is _NOT_GIVEN or config is None:
-            value = None
+            value = config.fields[attr]  # an explicit or default None is what lenstronomy gets
+        elif config is None:  # no call found: fall back to plain assignments
+            value = symbols.get(attr, symbols.get(alias, _MISSING) if alias else _MISSING)
+        elif config is _MISSING:
+            value = _MISSING
         else:
             value = UNRESOLVED
-        if value is None:
-            # Fallback to plain assignments for the data block.
-            value = symbols.get(attr, symbols.get(alias) if alias else None)
         setattr(found, attr, value)
     return found
 
@@ -671,7 +684,7 @@ def compare_code_to_params(code: str, params: LensParameterSet) -> CodeParamComp
     unresolved: list[str] = []
 
     def record(field: str, expected: Any, actual: Any) -> None:
-        if actual is None:
+        if actual is _MISSING:
             missing.append(field)
         elif actual == UNRESOLVED:
             unresolved.append(field)
@@ -694,11 +707,14 @@ def compare_code_to_params(code: str, params: LensParameterSet) -> CodeParamComp
         ("kwargs_lens", params.kwargs_lens, found.kwargs_lens),
         ("kwargs_source", params.kwargs_source, found.kwargs_source),
     ):
-        if actual_kwargs is None:
+        if actual_kwargs is _MISSING:
             missing.append(label)
             continue
-        if not isinstance(actual_kwargs, list):
+        if actual_kwargs == UNRESOLVED:
             unresolved.append(label)
+            continue
+        if not isinstance(actual_kwargs, (list, tuple)):
+            diverged.append(FieldComparison(field=label, expected=expected_kwargs, actual=actual_kwargs))
             continue
         for i, exp_dict in enumerate(expected_kwargs):
             if i < len(actual_kwargs) and actual_kwargs[i] == UNRESOLVED:
@@ -709,7 +725,7 @@ def compare_code_to_params(code: str, params: LensParameterSet) -> CodeParamComp
                 continue
             for key, exp_val in exp_dict.items():
                 field = f"{label}[{i}].{key}"
-                record(field, exp_val, actual_kwargs[i].get(key))
+                record(field, exp_val, actual_kwargs[i].get(key, _MISSING))
 
     data = params.kwargs_data
     record("numPix", data.numPix, found.numPix)

@@ -352,6 +352,16 @@ def test_the_grid_is_read_from_the_imagedata_that_renders():
     assert "numPix" in compare_code_to_params(program, _PARAMS).unresolved
 
 
+def test_an_explicit_none_is_kept():
+    # The assignments match, but data_configure_simple is passed None, which lenstronomy uses.
+    program = _MATCHING_PROGRAM + ("kwargs_data = data_configure_simple(numPix, deltaPix, "
+                                   "exposure_time=None, background_rms=None)\n")
+    assert _diverged(compare_code_to_params(program, _PARAMS)) == {"exposure_time": None, "background_rms": None}
+    # Left out, they default to None in lenstronomy too.
+    comp = compare_code_to_params(_MATCHING_PROGRAM + "kwargs_data = data_configure_simple(numPix, deltaPix)\n", _PARAMS)
+    assert set(_diverged(comp)) == {"exposure_time", "background_rms"}
+
+
 def test_arguments_left_out_of_image_are_missing():
     call = "image_model.image(kwargs_lens=kwargs_lens, kwargs_source=kwargs_source)"
     comp = compare_code_to_params(_IMAGE_MODEL_PROGRAM.replace(
