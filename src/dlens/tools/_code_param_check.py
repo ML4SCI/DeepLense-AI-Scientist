@@ -32,15 +32,16 @@ Where each field is looked for:
   is rendered (an argument the call leaves out is missing); without such a
   call, assignments to those names.
 * ``lens_model_list``/``source_model_list``: the ``LensModel``/``LightModel``
-  passed to the ``ImageModel`` that renders, else the only one the script
-  builds, else an assignment to that name (``light_model_list`` is accepted for
-  the source too).
+  passed to the ``ImageModel`` that renders (UNRESOLVED if that argument, or the
+  ImageModel itself, cannot be followed); with no ImageModel at all, the only one
+  the script builds, else an assignment to that name (``light_model_list`` is
+  accepted for the source too).
 * ``numPix``/``deltaPix``/``exposure_time``/``background_rms``: the arguments of
   ``data_configure_simple(...)``, positional or by keyword in either the 1.9.2
   (``numPix``) or 1.14.1+ (``num_pix``) spelling, falling back to assignments to
   either name.
 * PSF ``psf_type``/``fwhm``/``pixel_size``: the ``PSF(...)`` passed to that
-  ``ImageModel``, else the only one built. lenstronomy's default ``psf_type`` is
+  ``ImageModel``, under the same rules. lenstronomy's default ``psf_type`` is
   ``'NONE'``, so leaving it out counts as ``'NONE'``.
 """
 
@@ -554,13 +555,19 @@ def _only(built: Any) -> Any:
 
 
 def _component(image_model: Any, role: str, kind: str, found: dict[str, Any]) -> Any:
-    """The ``kind`` object the rendering ImageModel was given as ``role``, most direct evidence first."""
+    """The ``kind`` object the rendering ImageModel was given as ``role``.
+
+    Only a script that builds no ImageModel at all falls back to the one ``kind``
+    object it builds. An argument the check cannot follow, or an ImageModel it
+    cannot identify, leaves the component UNRESOLVED rather than guessing.
+    """
     if isinstance(image_model, _Built):
         given = image_model.fields[role]
-        if isinstance(given, _Built) and given.kind == kind:
-            return given
         if given is None:
             return _NOT_GIVEN
+        return given if isinstance(given, _Built) and given.kind == kind else UNRESOLVED
+    if image_model == UNRESOLVED:
+        return UNRESOLVED
     return _only(found.get(f"built:{kind}"))
 
 
@@ -586,9 +593,10 @@ def extract_lenstronomy_inputs(code: str) -> _Extracted:
         # The arguments of the last image() call outrank same-named assignments.
         found.kwargs_lens, found.kwargs_source = rendered["kwargs_lens"], rendered["kwargs_source"]
         image_model = rendered["image_model"]
+        if not (isinstance(image_model, _Built) and image_model.kind == "ImageModel"):
+            image_model = UNRESOLVED  # the image() call's ImageModel cannot be identified
     else:
         found.kwargs_lens, found.kwargs_source = f.get("assigned:kwargs_lens"), f.get("assigned:kwargs_source")
-    if not (isinstance(image_model, _Built) and image_model.kind == "ImageModel"):
         image_model = _only(f.get("built:ImageModel"))
 
     for attr, role, kind in (("lens_model_list", "lens", "LensModel"),

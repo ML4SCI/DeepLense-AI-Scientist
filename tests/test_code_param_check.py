@@ -200,15 +200,12 @@ def test_the_kwargs_passed_to_image_are_the_ones_checked():
         assert not comp.passed, call
         assert {d.field: d.actual for d in comp.diverged}.get("kwargs_lens[0].theta_E") == 2.5
 
-    # The cheat-sheet's own call shape still passes, and a computed argument
-    # is reported as unresolved rather than guessed.
-    ok = compare_code_to_params(
-        _MATCHING_PROGRAM + "image = image_model.image(kwargs_lens=kwargs_lens, kwargs_source=kwargs_source)\n",
-        _PARAMS)
+    # The cheat-sheet's own script, which builds the ImageModel it renders with,
+    # still passes, and a computed argument is reported as unresolved rather than guessed.
+    ok = compare_code_to_params(_IMAGE_MODEL_PROGRAM, _PARAMS)
     assert ok.passed, ok.messages
     computed = compare_code_to_params(
-        _MATCHING_PROGRAM + "image = image_model.image(kwargs_lens=make_lens(), kwargs_source=kwargs_source)\n",
-        _PARAMS)
+        _IMAGE_MODEL_PROGRAM.replace("image(kwargs_lens=kwargs_lens,", "image(kwargs_lens=make_lens(),"), _PARAMS)
     assert "kwargs_lens" in computed.unresolved
 
 
@@ -323,6 +320,23 @@ def test_the_model_classes_built_outrank_list_assignments():
         "image_model = ImageModel(").replace(
         "kwargs_numerics=", "lens_light_model_class=lens_light, kwargs_numerics=")
     assert compare_code_to_params(program, _PARAMS).passed
+
+
+def test_an_argument_the_check_cannot_follow_is_unresolved():
+    # The validated PSF and LensModel are built, but ImageModel is given something else.
+    for old, new, field in (
+        ("ImageModel(data_class, psf_class,", "ImageModel(data_class, get_psf(),", "psf_fwhm"),
+        ("lens_model_class=LensModel(lens_model_list=lens_model_list)",
+         "lens_model_class=make_lens_model(LensModel(lens_model_list=lens_model_list))", "lens_model_list"),
+    ):
+        comp = compare_code_to_params(_IMAGE_MODEL_PROGRAM.replace(old, new), _PARAMS)
+        assert field in comp.unresolved, field
+
+    # The ImageModel that renders cannot be identified: the one built earlier is not assumed.
+    call = "image = image_model.image("
+    comp = compare_code_to_params(_IMAGE_MODEL_PROGRAM.replace(call, "image_model = choose_image_model()\n" + call),
+                                  _PARAMS)
+    assert {"lens_model_list", "source_model_list", "psf_type"} <= set(comp.unresolved)
 
 
 def test_arguments_left_out_of_image_are_missing():
