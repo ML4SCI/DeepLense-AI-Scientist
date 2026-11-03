@@ -246,6 +246,20 @@ def test_validator_pixel_psf_needs_a_kernel_the_schema_cannot_carry():
     assert "psf_kernel" not in validate_parameters(_params()).checks
 
 
+def test_validator_snr_is_not_estimated_from_an_invalid_source_shape():
+    # n_sersic = 0.001 fails its own check; the estimate used to overflow on it.
+    bad = copy.deepcopy(GOOD_PARAMS)
+    bad["kwargs_source"][0]["n_sersic"] = 0.001
+    res = validate_parameters(LensParameterSet.model_validate(bad))
+    assert res.checks["sersic_index"] is False
+    assert "snr" not in res.checks and res.snr_estimate is None
+
+    # A tiny but positive R_sersic is valid, so it is estimated, without overflowing.
+    tiny = copy.deepcopy(GOOD_PARAMS)
+    tiny["kwargs_source"][0].update(R_sersic=1e-300, n_sersic=0.5)
+    assert validate_parameters(LensParameterSet.model_validate(tiny)).checks["snr"] is False
+
+
 def test_blurred_centre_matches_the_gaussian_closed_form():
     from dlens.tools._param_validator import _blurred_centre
 

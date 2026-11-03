@@ -196,8 +196,11 @@ def _source_peak(params: LensParameterSet, name: str, kw: dict[str, float], sigm
             return None
         b_n = max(1.9992 * n - 0.3271, 1e-5)  # lenstronomy 1.9.2's SersicUtil.b_n
         # amp is the brightness at R_sersic, rising toward amp * exp(b_n) at the centre.
+        # (r / R_sersic)**(1/n) is taken in log space and capped, so a tiny R_sersic
+        # cannot overflow; past the cap the profile is 0 anyway.
         return _blurred_centre(
-            lambda r: amp * math.exp(-b_n * ((max(r, _SERSIC_CORE) / r_e) ** (1.0 / n) - 1.0)),
+            lambda r: amp * math.exp(-b_n * (math.exp(min(math.log(max(r, _SERSIC_CORE) / r_e) / n, 700.0))
+                                             - 1.0)),
             sigma, sigma_t)
     if name == "GAUSSIAN":
         amp, s = kw.get("amp"), kw.get("sigma", 0.0)
@@ -206,6 +209,17 @@ def _source_peak(params: LensParameterSet, name: str, kw: dict[str, float], sigm
         # amp is the total flux; the blurred Gaussian's centre has a closed form.
         return amp / (2.0 * math.pi * math.sqrt((s * s + sigma * sigma) * (s * s + sigma_t * sigma_t)))
     return None
+
+
+def _snr_inputs_valid(params: LensParameterSet, r: ValidationRanges) -> bool:
+    """The SNR estimate needs every source shape to have passed its own check."""
+    for name, kw in zip(params.source_model_list, params.kwargs_source):
+        if name in ("SERSIC", "SERSIC_ELLIPSE"):
+            if not r.n_sersic_min <= kw.get("n_sersic", 0.0) <= r.n_sersic_max or kw.get("R_sersic", 0.0) <= 0:
+                return False
+        elif name == "GAUSSIAN" and kw.get("sigma", 0.0) <= 0:
+            return False
+    return True
 
 
 def _estimate_snr(params: LensParameterSet, noise_excess: float) -> float | None:
@@ -480,7 +494,9 @@ def validate_parameters(
                  f"[{r.vortex_mass_min:g}, {r.vortex_mass_max:g}]; canonical value 3e10.")
 
     # --- SNR in the real-data band (where computable) -----------------------------
-    snr = None if non_finite else _estimate_snr(params, r.snr_noise_excess)
+    snr = None
+    if not non_finite and _snr_inputs_valid(params, r):
+        snr = _estimate_snr(params, r.snr_noise_excess)
     if snr is not None:
         if r.snr_min <= snr <= r.snr_max:
             ok("snr")
