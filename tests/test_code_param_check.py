@@ -288,6 +288,29 @@ def test_code_that_does_not_run_does_not_count():
     assert "kwargs_lens" in compare_code_to_params(script.replace("    main()", "    pass"), _PARAMS).missing
 
 
+def test_code_after_return_or_exit_does_not_count():
+    call = "image = image_model.image(kwargs_lens=kwargs_lens, kwargs_source=kwargs_source)"
+    wrong = "wrong = [{'theta_E': 2.5, 'e1': 0.1, 'e2': 0.0, 'center_x': 0.0, 'center_y': 0.0}]\n"
+    render = ("def render():\n"
+              "    image = image_model.image(kwargs_lens=wrong, kwargs_source=kwargs_source)\n"
+              "    return image\n"
+              "    image = image_model.image(kwargs_lens=kwargs_lens, kwargs_source=kwargs_source)\n"
+              "image = render()\n")
+    exits = "image = image_model.image(kwargs_lens=wrong, kwargs_source=kwargs_source)\nsys.exit(0)\n" + call
+    for replacement in (render, exits):
+        comp = compare_code_to_params(_IMAGE_MODEL_PROGRAM.replace(call, wrong + replacement), _PARAMS)
+        assert _diverged(comp) == {"kwargs_lens[0].theta_E": 2.5}, replacement
+
+    # A path that raises renders nothing, so a guard does not make the result
+    # unresolved, and sys.exit(main()) still runs main().
+    guarded = _IMAGE_MODEL_PROGRAM.replace(call, "if len(sys.argv) > 5:\n    raise SystemExit('usage')\n" + call)
+    assert compare_code_to_params(guarded, _PARAMS).passed
+    head, body = _IMAGE_MODEL_PROGRAM.split("numPix = 64")
+    body = "".join(f"    {line}\n" if line.strip() else "\n" for line in ("numPix = 64" + body).splitlines())
+    script = head + "def main():\n" + body + "    return 0\n\nif __name__ == '__main__':\n    sys.exit(main())\n"
+    assert compare_code_to_params(script, _PARAMS).passed
+
+
 def test_the_model_classes_built_outrank_list_assignments():
     comp = compare_code_to_params(_IMAGE_MODEL_PROGRAM.replace(
         "LensModel(lens_model_list=lens_model_list)", "LensModel(lens_model_list=['SIS'])"), _PARAMS)

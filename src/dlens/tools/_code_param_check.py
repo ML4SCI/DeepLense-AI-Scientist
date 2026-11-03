@@ -21,9 +21,10 @@ UNRESOLVED — never guessed, and unresolved values do NOT pass.
 The script is followed the way it runs. A branch whose condition is known
 statically (``if False:``, ``if DEBUG:`` with ``DEBUG = True``, ``if __name__ ==
 "__main__":``) contributes only the side that runs; a function body counts
-only where the function is called, in its own scope. When the path depends on
-runtime values (another condition, a loop, an exception), a value that differs
-between the possible paths is UNRESOLVED.
+only where the function is called, in its own scope, and nothing after a return,
+break, continue or sys.exit() runs (a path that raises renders nothing, so it is
+dropped). When the path depends on runtime values (another condition, a loop, an
+exception), a value that differs between the possible paths is UNRESOLVED.
 
 Where each field is looked for:
 * ``kwargs_lens``/``kwargs_source``: the arguments of the last
@@ -326,101 +327,128 @@ def _merge(paths: list[_State]) -> _State:
 
 
 class _Walker:
-    """Follows the script statement by statement, the way it runs."""
+    """Follows the script statement by statement, the way it runs.
+
+    ``block`` and ``statement`` return True when control cannot fall through: after a
+    return, raise, break or continue, or a call that never returns. A return keeps
+    its path's state for the function's caller, a break or continue for the loop's
+    exit, and sys.exit() for the end of the program. A raise drops its path: a script
+    that raises renders nothing.
+    """
 
     def __init__(self) -> None:
         self.functions: dict[str, ast.FunctionDef | ast.AsyncFunctionDef] = {}
         self.active: list[str] = []
+        self.returns: list[list[_State]] = []  # one list per running function
+        self.loop_exits: list[list[_State]] = []  # one list per running loop
+        self.program_exits: list[_State] = []
 
-    def block(self, stmts: list[ast.stmt], state: _State) -> None:
+    def block(self, stmts: list[ast.stmt], state: _State) -> bool:
         for stmt in stmts:
-            self.statement(stmt, state)
+            if self.statement(stmt, state):
+                return True  # the rest of the block never runs
+        return False
 
-    def statement(self, node: ast.stmt, state: _State) -> None:
+    def statement(self, node: ast.stmt, state: _State) -> bool:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             self.functions[node.name] = node  # the body runs only where it is called
             state.symbols[node.name] = UNRESOLVED
-            return
+            return False
         if isinstance(node, ast.ClassDef):
             state.symbols[node.name] = UNRESOLVED
-            return
+            return False
         if isinstance(node, ast.If):
-            self.calls(node.test, state)
+            if self.calls(node.test, state):
+                return True
             value = _truth(node.test, state.symbols)
             if value is not None:
-                self.block(node.body if value else node.orelse, state)
-                return
-            taken, skipped = state.copy(), state.copy()
-            self.block(node.body, taken)
-            self.block(node.orelse, skipped)
-            state.take(_merge([taken, skipped]))
-            return
+                return self.block(node.body if value else node.orelse, state)
+            return self.branches([(node.body, state.copy()), (node.orelse, state.copy())], state)
         if isinstance(node, (ast.For, ast.AsyncFor, ast.While)):
-            self.loop(node, state)
-            return
+            return self.loop(node, state)
         if isinstance(node, (ast.With, ast.AsyncWith)):
             for item in node.items:
-                self.calls(item.context_expr, state)
+                if self.calls(item.context_expr, state):
+                    return True
                 if item.optional_vars is not None:
                     self.bind(item.optional_vars, UNRESOLVED, state)
-            self.block(node.body, state)
-            return
+            return self.block(node.body, state)
         if isinstance(node, ast.Try) or type(node).__name__ == "TryStar":
-            self.attempt(node, state)
-            return
+            return self.attempt(node, state)
         if isinstance(node, ast.Match):
-            self.calls(node.subject, state)
-            paths = [state.copy()]  # no case matched
+            if self.calls(node.subject, state):
+                return True
+            cases = []
             for case in node.cases:
                 path = state.copy()
                 for name in _names_bound(case.pattern):
                     path.symbols[name] = UNRESOLVED
-                self.block(case.body, path)
-                paths.append(path)
-            state.take(_merge(paths))
-            return
-        self.calls(node, state)
+                cases.append((case.body, path))
+            return self.branches([*cases, ([], state.copy())], state)  # or no case matches
+        if self.calls(node, state):
+            return True
         if isinstance(node, ast.Assign):
             value = _resolve(node.value, state.symbols)
             for target in node.targets:
                 self.bind(target, value, state)
+        elif isinstance(node, ast.Return):
+            if self.returns:
+                self.returns[-1].append(state.copy())
+            return True
+        elif isinstance(node, ast.Raise):
+            return True
+        elif isinstance(node, (ast.Break, ast.Continue)):
+            if self.loop_exits:
+                self.loop_exits[-1].append(state.copy())
+            return True
+        return False
 
-    def loop(self, node: ast.For | ast.AsyncFor | ast.While, state: _State) -> None:
+    def branches(self, paths: list[tuple[list[ast.stmt], _State]], state: _State) -> bool:
+        """Run alternative blocks, each from its own copy of the state; join the ones that fall through."""
+        through = [path for body, path in paths if not self.block(body, path)]
+        if not through:
+            return True
+        state.take(_merge(through))
+        return False
+
+    def loop(self, node: ast.For | ast.AsyncFor | ast.While, state: _State) -> bool:
         """The body runs zero or more times: iterate until the joined state is stable."""
         if isinstance(node, ast.While):
-            self.calls(node.test, state)
+            if self.calls(node.test, state):
+                return True
             if _truth(node.test, state.symbols) is False:
-                self.block(node.orelse, state)
-                return
-        else:
-            self.calls(node.iter, state)
+                return self.block(node.orelse, state)
+        elif self.calls(node.iter, state):
+            return True
         entry = state.copy()
         for _ in range(3):
             body = entry.copy()
             if not isinstance(node, ast.While):
                 self.bind(node.target, UNRESOLVED, body)
-            self.block(node.body, body)
-            joined = _merge([state, body])
+            self.loop_exits.append([])
+            ended = self.block(node.body, body)
+            exits = self.loop_exits.pop()
+            joined = _merge([state, *([] if ended else [body]), *exits])
             if joined.symbols == entry.symbols and joined.found == entry.found:
                 break
             entry = joined
         state.take(entry)
-        self.block(node.orelse, state)
+        return self.block(node.orelse, state)
 
-    def attempt(self, node: ast.AST, state: _State) -> None:
+    def attempt(self, node: ast.AST, state: _State) -> bool:
         """try/except: a handler may start from any point in the body."""
         before = state.copy()
-        self.block(node.body, state)
-        self.block(node.orelse, state)
-        paths = [state.copy()]
+        ended = self.block(node.body, state) or self.block(node.orelse, state)
+        paths = [] if ended else [state.copy()]
         for handler in node.handlers:
             path = _merge([before, state])
             if handler.name:
                 path.symbols[handler.name] = UNRESOLVED
-            self.block(handler.body, path)
-            paths.append(path)
-        state.take(_merge(paths))
-        self.block(node.finalbody, state)
+            if not self.block(handler.body, path):
+                paths.append(path)
+        if paths:
+            state.take(_merge(paths))
+        return self.block(node.finalbody, state) or not paths
 
     def bind(self, target: ast.AST, value: Any, state: _State) -> None:
         if isinstance(target, ast.Name):
@@ -436,11 +464,14 @@ class _Walker:
                 self.bind(el.value if isinstance(el, ast.Starred) else el, part, state)
         # Attribute and subscript targets (in-place edits) are not followed.
 
-    def calls(self, node: ast.AST, state: _State) -> None:
+    def calls(self, node: ast.AST, state: _State) -> bool:
+        """Follow the calls in an expression or simple statement; True if one never returns."""
         for call in _calls_in_order(node):
-            self.call(call, state)
+            if self.call(call, state):
+                return True
+        return False
 
-    def call(self, call: ast.Call, state: _State) -> None:
+    def call(self, call: ast.Call, state: _State) -> bool:
         name, found = _call_name(call), state.found
         if name in ("LensModel", "LightModel", "PSF", "ImageModel"):
             key = f"built:{name}"
@@ -457,13 +488,20 @@ class _Walker:
             found["rendered"] = {"kwargs_lens": args.get("kwargs_lens"),
                                  "kwargs_source": args.get("kwargs_source"),
                                  "image_model": _resolve(call.func.value, state.symbols)}
+        if _is_exit_call(call):
+            self.program_exits.append(state.copy())
+            return True
         if isinstance(call.func, ast.Name) and call.func.id in self.functions:
-            self.run(self.functions[call.func.id], call, state)
+            return self.run(self.functions[call.func.id], call, state)
+        return False
 
-    def run(self, fn: ast.FunctionDef | ast.AsyncFunctionDef, call: ast.Call, state: _State) -> None:
-        """Run a called function's body in its own scope; what it builds still counts."""
+    def run(self, fn: ast.FunctionDef | ast.AsyncFunctionDef, call: ast.Call, state: _State) -> bool:
+        """Run a called function's body in its own scope; what it builds still counts.
+
+        Returns True when the function never returns (every path raises or exits).
+        """
         if fn.name in self.active or len(self.active) >= _MAX_CALL_DEPTH:
-            return
+            return False
         a = fn.args
         positional = [p.arg for p in (*a.posonlyargs, *a.args)]
         given = _arguments(call, state.symbols, tuple(positional))
@@ -482,11 +520,26 @@ class _Walker:
                 local.symbols[extra.arg] = UNRESOLVED
         shared = {n for node in ast.walk(fn) if isinstance(node, ast.Global) for n in node.names}
         self.active.append(fn.name)
-        self.block(fn.body, local)
+        self.returns.append([])
+        ended = self.block(fn.body, local)
+        paths = self.returns.pop() + ([] if ended else [local])
         self.active.pop()
-        state.found = local.found
-        for name in shared & set(local.symbols):
-            state.symbols[name] = local.symbols[name]
+        if not paths:
+            return True
+        final = _merge(paths)
+        state.found = final.found
+        for name in shared & set(final.symbols):
+            state.symbols[name] = final.symbols[name]
+        return False
+
+
+def _is_exit_call(call: ast.Call) -> bool:
+    """sys.exit(), os._exit(), exit() or quit(): the program ends here."""
+    func = call.func
+    if isinstance(func, ast.Name):
+        return func.id in ("exit", "quit")
+    return (isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name)
+            and (func.value.id, func.attr) in (("sys", "exit"), ("os", "_exit")))
 
 
 def _only(built: Any) -> Any:
@@ -515,7 +568,13 @@ def extract_lenstronomy_inputs(code: str) -> _Extracted:
     """Walk the script and recover the lenstronomy input values."""
     tree = ast.parse(code)
     state = _State()
-    _Walker().block(tree.body, state)
+    walker = _Walker()
+    ended = walker.block(tree.body, state)
+    # The script ends where it falls off the end or calls sys.exit(); if every path
+    # raises, there is no successful run, so the state as walked is kept.
+    paths = walker.program_exits + ([] if ended else [state])
+    if paths:
+        state = _merge(paths)
     symbols, f = state.symbols, state.found
     found = _Extracted()
 
