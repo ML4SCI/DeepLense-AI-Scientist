@@ -260,6 +260,17 @@ def test_validator_snr_is_not_estimated_from_an_invalid_source_shape():
     assert validate_parameters(LensParameterSet.model_validate(tiny)).checks["snr"] is False
 
 
+def test_validator_snr_is_not_estimated_for_several_sources():
+    # Two copies of the same source add up to twice the peak; the brightest-one
+    # estimate would not see it, so no estimate is made.
+    two = copy.deepcopy(GOOD_PARAMS)
+    two["source_model_list"] = two["source_model_list"] * 2
+    two["kwargs_source"] = two["kwargs_source"] * 2
+    res = validate_parameters(LensParameterSet.model_validate(two))
+    assert "snr" not in res.checks and res.snr_estimate is None
+    assert res.passed, res.messages
+
+
 def test_blurred_centre_matches_the_gaussian_closed_form():
     from dlens.tools._param_validator import _blurred_centre
 

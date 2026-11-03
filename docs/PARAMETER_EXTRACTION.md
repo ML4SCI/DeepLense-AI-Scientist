@@ -89,7 +89,9 @@ centre then predict p5 / median / p95 of 14.7 / 18.1 / 21.7, against measured
 within 2% up to n=4.5; its scatter grows with n (p5-p95 within 10% below n=1,
 25% at n=2-3) because without supersampling a sub-pixel cusp lands at a random
 offset from the pixel centres. No rendering happens at validation time (~0.1 ms
-per source). The acceptance band is [14, 60]: floor = measured p5, ceiling = a
+per source). A parameter set with several source profiles is not estimated, since
+overlapping sources add up and the brightest alone would understate the peak; the
+SNR check is then left out. The acceptance band is [14, 60]: floor = measured p5, ceiling = a
 ~3x-p95 runaway-amp guard (heuristic).
 
 **Flag for Lucca:** real DeepLenseSim Model_I images measure ~18 peak SNR — a

@@ -233,7 +233,9 @@ def _estimate_snr(params: LensParameterSet, noise_excess: float) -> float | None
     With a background sigma of sb counts, a pixel of P counts has variance
     2 P + sb^2 (Poisson noise is added twice) and the brightest pixel sits
     ``noise_excess`` of that noise above the peak; the clipped background has mean
-    sb / sqrt(2 pi) and variance sb / sqrt(2 pi) + sb^2 (pi - 1) / (2 pi).
+    sb / sqrt(2 pi) and variance sb / sqrt(2 pi) + sb^2 (pi - 1) / (2 pi). A
+    parameter set with several source profiles is not estimated: their light can
+    overlap and add up, so the brightest one alone would understate the peak.
 
     Definition history, for honesty: v1 was peak-pixel WITHOUT any lensing term
     (under-predicted ~6x — every live extraction failed); v2 switched to
@@ -243,6 +245,8 @@ def _estimate_snr(params: LensParameterSet, noise_excess: float) -> float | None
     centre-to-R_sersic ratio exp(b_1) = 5.3, so it misjudged every other Sersic
     index: its peak was 2-3x too bright below n = 1 and ~3x too faint above n = 2.
     """
+    if len(params.kwargs_source) > 1:
+        return None
     data = params.kwargs_data
     if data.exposure_time is None or data.background_rms is None:
         return None
