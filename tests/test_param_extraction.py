@@ -239,6 +239,13 @@ def test_validator_gaussian_source_width_must_be_positive():
     assert res.checks["gaussian_sigma"] is True
 
 
+def test_validator_pixel_psf_needs_a_kernel_the_schema_cannot_carry():
+    res = validate_parameters(_params(kwargs_psf={"psf_type": "PIXEL", "pixel_size": 0.08}))
+    assert res.checks["psf_kernel"] is False
+    assert any("kernel_point_source" in m for m in res.messages)
+    assert "psf_kernel" not in validate_parameters(_params()).checks
+
+
 def test_blurred_centre_matches_the_gaussian_closed_form():
     from dlens.tools._param_validator import _blurred_centre
 

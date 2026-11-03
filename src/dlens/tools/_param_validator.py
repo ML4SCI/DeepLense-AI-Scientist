@@ -437,6 +437,9 @@ def validate_parameters(
 
     # --- PSF ------------------------------------------------------------------
     psf = params.kwargs_psf
+    if psf.psf_type == "PIXEL":
+        fail("psf_kernel", "a PIXEL PSF needs kernel_point_source, which LensParameterSet cannot "
+             "carry (lenstronomy raises a ValueError without one); use psf_type='GAUSSIAN' with fwhm.")
     if psf.psf_type in PSF_TYPES:
         ok("psf_type")
     else:
