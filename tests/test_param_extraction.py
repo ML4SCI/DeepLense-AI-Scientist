@@ -216,6 +216,21 @@ def test_validator_snr_skipped_for_a_nonpositive_pixel_scale():
     assert res.snr_estimate is None and "snr" not in res.checks
 
 
+def test_validator_rejects_non_finite_numbers():
+    # pydantic accepts inf and NaN for float fields; json.loads turns 1e400 into inf.
+    lens = GOOD_PARAMS["kwargs_lens"][0]
+    for overrides, field in (
+        ({"kwargs_lens": [dict(lens, center_x=float("inf"))]}, "kwargs_lens[0].center_x"),
+        ({"kwargs_lens": [dict(lens, e1=float("nan"))]}, "kwargs_lens[0].e1"),
+        ({"kwargs_data": dict(GOOD_PARAMS["kwargs_data"], exposure_time=float("inf"))}, "kwargs_data.exposure_time"),
+    ):
+        res = validate_parameters(_params(**overrides))
+        assert res.checks["finite_values"] is False, field
+        assert any(field in m for m in res.messages)
+        assert res.snr_estimate is None
+    assert validate_parameters(_params()).checks["finite_values"] is True
+
+
 def test_blurred_centre_matches_the_gaussian_closed_form():
     from dlens.tools._param_validator import _blurred_centre
 

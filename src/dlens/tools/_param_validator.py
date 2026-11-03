@@ -250,6 +250,18 @@ def _estimate_snr(params: LensParameterSet, noise_excess: float) -> float | None
     return (top - bkg_mean) / math.sqrt(top + bkg_var)
 
 
+def _non_finite_fields(params: LensParameterSet) -> list[str]:
+    """The numeric fields holding inf or NaN, which pydantic accepts for floats."""
+    values = [("z_lens", params.z_lens), ("z_source", params.z_source)]
+    for label, kws in (("kwargs_lens", params.kwargs_lens), ("kwargs_source", params.kwargs_source)):
+        values += [(f"{label}[{i}].{k}", v) for i, kw in enumerate(kws) for k, v in kw.items()]
+    data, psf = params.kwargs_data, params.kwargs_psf
+    values += [(f"kwargs_data.{k}", getattr(data, k)) for k in ("deltaPix", "exposure_time", "background_rms")]
+    values += [(f"kwargs_psf.{k}", getattr(psf, k)) for k in ("fwhm", "pixel_size")]
+    values += [(k, getattr(params, k)) for k in ("halo_mass", "axion_mass", "vortex_mass")]
+    return [name for name, v in values if v is not None and not math.isfinite(v)]
+
+
 def validate_parameters(
     params: LensParameterSet, ranges: ValidationRanges | None = None
 ) -> ParamValidationResult:
@@ -264,6 +276,15 @@ def validate_parameters(
 
     def ok(name: str) -> None:
         checks[name] = True
+
+    # --- every number finite -------------------------------------------------
+    # No range check below bounds a centre or an amplitude, and NaN slips past
+    # every comparison, so inf and NaN are rejected up front.
+    non_finite = _non_finite_fields(params)
+    if non_finite:
+        fail("finite_values", f"{', '.join(non_finite)} must be finite (got inf or NaN).")
+    else:
+        ok("finite_values")
 
     # --- redshifts ---------------------------------------------------------
     if 0 < params.z_lens < r.z_lens_max:
@@ -446,7 +467,7 @@ def validate_parameters(
                  f"[{r.vortex_mass_min:g}, {r.vortex_mass_max:g}]; canonical value 3e10.")
 
     # --- SNR in the real-data band (where computable) -----------------------------
-    snr = _estimate_snr(params, r.snr_noise_excess)
+    snr = None if non_finite else _estimate_snr(params, r.snr_noise_excess)
     if snr is not None:
         if r.snr_min <= snr <= r.snr_max:
             ok("snr")
