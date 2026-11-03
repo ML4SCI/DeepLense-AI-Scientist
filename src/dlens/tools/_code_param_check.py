@@ -9,7 +9,8 @@ regex) and diffs them against the validated set, field by field.
 Resolution rules (in order):
 * literals (including unary minus and constant-folding of + - * / ** on
   resolved operands, so ``10**3`` and ``-0.1`` work);
-* names, through a symbol table of ``name = value`` assignments;
+* names, through a symbol table of ``name = value`` assignments, including
+  annotated (``name: int = value``) and augmented (``name += value``) ones;
 * constant subscripts of resolved dicts and lists (gpt-5.2 routinely routes
   literals through kwargs dicts, e.g. ``kwargs_data["exposure_time"]``), and
   ``**`` expansions of resolved dicts, applied in order;
@@ -420,6 +421,13 @@ class _Walker:
             value = _resolve(node.value, state.symbols)
             for target in node.targets:
                 self.bind(target, value, state)
+        elif isinstance(node, ast.AnnAssign):
+            if node.value is not None:  # a bare annotation binds nothing
+                self.bind(node.target, _resolve(node.value, state.symbols), state)
+        elif isinstance(node, ast.AugAssign):
+            if isinstance(node.target, ast.Name):  # x += v is x = x + v; x[...] += v is an in-place edit
+                current = ast.BinOp(left=ast.Name(id=node.target.id, ctx=ast.Load()), op=node.op, right=node.value)
+                self.bind(node.target, _resolve(current, state.symbols), state)
         elif isinstance(node, ast.Return):
             if self.returns:
                 self.returns[-1].append(state.copy())

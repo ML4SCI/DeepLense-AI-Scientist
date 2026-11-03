@@ -362,6 +362,16 @@ def test_an_explicit_none_is_kept():
     assert set(_diverged(comp)) == {"exposure_time", "background_rms"}
 
 
+def test_annotated_and_augmented_assignments_are_followed():
+    grid = "numPix = 64\n"
+    for added in ("numPix: int = 128\n", "numPix += 64\n"):
+        comp = compare_code_to_params(_IMAGE_MODEL_PROGRAM.replace(grid, grid + added), _PARAMS)
+        assert _diverged(comp) == {"numPix": 128}, added
+    comp = compare_code_to_params(_IMAGE_MODEL_PROGRAM.replace(grid, grid + "numPix //= 1\n"), _PARAMS)
+    assert "numPix" in comp.unresolved  # not folded: unresolved
+    assert compare_code_to_params(_IMAGE_MODEL_PROGRAM.replace(grid, "numPix: int = 64\n"), _PARAMS).passed
+
+
 def test_arguments_left_out_of_image_are_missing():
     call = "image_model.image(kwargs_lens=kwargs_lens, kwargs_source=kwargs_source)"
     comp = compare_code_to_params(_IMAGE_MODEL_PROGRAM.replace(
