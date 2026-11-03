@@ -339,6 +339,19 @@ def test_an_argument_the_check_cannot_follow_is_unresolved():
     assert {"lens_model_list", "source_model_list", "psf_type"} <= set(comp.unresolved)
 
 
+def test_the_grid_is_read_from_the_imagedata_that_renders():
+    config = "kwargs_data = sim_util.data_configure_simple(numPix, deltaPix, exposure_time=5400.0, background_rms=0.01)"
+    assert config in _IMAGE_MODEL_PROGRAM
+    program = _IMAGE_MODEL_PROGRAM.replace(config, config.replace("(numPix,", "(128,")).replace(
+        "data_class = ImageData(**kwargs_data)\n",
+        "data_class = ImageData(**kwargs_data)\nunused = sim_util.data_configure_simple(64, 0.08)\n")
+    assert _diverged(compare_code_to_params(program, _PARAMS)) == {"numPix": 128}
+
+    # An ImageData the check cannot follow leaves the grid unresolved.
+    program = _IMAGE_MODEL_PROGRAM.replace("ImageData(**kwargs_data)", "ImageData(image_data=np.zeros((64, 64)))")
+    assert "numPix" in compare_code_to_params(program, _PARAMS).unresolved
+
+
 def test_arguments_left_out_of_image_are_missing():
     call = "image_model.image(kwargs_lens=kwargs_lens, kwargs_source=kwargs_source)"
     comp = compare_code_to_params(_IMAGE_MODEL_PROGRAM.replace(

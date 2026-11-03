@@ -13,8 +13,9 @@ Resolution rules (in order):
 * constant subscripts of resolved dicts and lists (gpt-5.2 routinely routes
   literals through kwargs dicts, e.g. ``kwargs_data["exposure_time"]``), and
   ``**`` expansions of resolved dicts, applied in order;
-* the lenstronomy objects a name holds: ``LensModel``, ``LightModel``, ``PSF``
-  and ``ImageModel`` calls are followed through assignments.
+* the lenstronomy objects a name holds: ``LensModel``, ``LightModel``, ``PSF``,
+  ``data_configure_simple``, ``ImageData`` and ``ImageModel`` calls are followed
+  through assignments.
 Anything else (other calls, loop variables, attribute reads) is reported as
 UNRESOLVED — never guessed, and unresolved values do NOT pass.
 
@@ -37,7 +38,8 @@ Where each field is looked for:
   the script builds, else an assignment to that name (``light_model_list`` is
   accepted for the source too).
 * ``numPix``/``deltaPix``/``exposure_time``/``background_rms``: the arguments of
-  ``data_configure_simple(...)``, positional or by keyword in either the 1.9.2
+  the ``data_configure_simple(...)`` behind the ``ImageData(**...)`` given to that
+  ``ImageModel`` (same rules), positional or by keyword in either the 1.9.2
   (``numPix``) or 1.14.1+ (``num_pix``) spelling, falling back to assignments to
   either name.
 * PSF ``psf_type``/``fwhm``/``pixel_size``: the ``PSF(...)`` passed to that
@@ -70,6 +72,8 @@ _PARAMETERS = {
     "image": ("kwargs_lens", "kwargs_source"),
 }
 _PSF_DEFAULT_TYPE = "NONE"
+# The calls whose results the check follows through names.
+_BUILDERS = ("LensModel", "LightModel", "PSF", "ImageModel", "ImageData", "data_configure_simple")
 
 # Names whose assignments stand in for a field when nothing more direct is found.
 _CONVENTIONAL = {"lens_model_list": "lens_model_list", "source_model_list": "source_model_list",
@@ -216,14 +220,25 @@ def _arguments(call: ast.Call, symbols: dict[str, Any], names: tuple[str, ...]) 
 def _build(call: ast.Call, symbols: dict[str, Any]) -> Any:
     """What a call returns, as far as the check follows it."""
     name = _call_name(call)
-    if name not in ("LensModel", "LightModel", "PSF", "ImageModel"):
+    if name not in _BUILDERS:
         return UNRESOLVED
+    if name == "ImageData":
+        # Followed when built as ImageData(**kwargs_data) from data_configure_simple.
+        expansions = [k.value for k in call.keywords if k.arg is None]
+        config = _resolve(expansions[0], symbols) if len(expansions) == 1 and not call.args else UNRESOLVED
+        is_config = isinstance(config, _Built) and config.kind == "data_configure_simple"
+        return _Built("ImageData", {"config": config if is_config else UNRESOLVED})
     args = _arguments(call, symbols, _PARAMETERS[name])
+    if name == "data_configure_simple":
+        for camel, snake in _GRID_ALIASES:
+            if snake in args:
+                args[camel] = args.pop(snake)
+        return _Built(name, {k: args.get(k) for k in _PARAMETERS[name]})
     if name == "PSF":
         return _Built("PSF", {"psf_type": args.get("psf_type", _PSF_DEFAULT_TYPE),
                               "fwhm": args.get("fwhm"), "pixel_size": args.get("pixel_size")})
     if name == "ImageModel":
-        return _Built("ImageModel", {"psf": args.get("psf_class"),
+        return _Built("ImageModel", {"data": args.get("data_class"), "psf": args.get("psf_class"),
                                      "lens": args.get("lens_model_class"),
                                      "source": args.get("source_model_class")})
     return _Built(name, {"models": args.get(_PARAMETERS[name][0])})
@@ -474,16 +489,10 @@ class _Walker:
 
     def call(self, call: ast.Call, state: _State) -> bool:
         name, found = _call_name(call), state.found
-        if name in ("LensModel", "LightModel", "PSF", "ImageModel"):
+        if name in _BUILDERS:
             key = f"built:{name}"
             previous = found.get(key, ())
             found[key] = UNRESOLVED if previous == UNRESOLVED else previous + (_build(call, state.symbols),)
-        elif name == "data_configure_simple":
-            args = _arguments(call, state.symbols, _PARAMETERS[name])
-            for camel, snake in _GRID_ALIASES:
-                if snake in args:
-                    args[camel] = args.pop(snake)
-            found["data"] = {k: args.get(k) for k in _PARAMETERS[name]}
         elif name == "image" and isinstance(call.func, ast.Attribute):
             args = _arguments(call, state.symbols, _PARAMETERS["image"])
             found["rendered"] = {"kwargs_lens": args.get("kwargs_lens"),
@@ -616,9 +625,17 @@ def extract_lenstronomy_inputs(code: str) -> _Extracted:
     elif psf == UNRESOLVED:
         found.psf_type = found.psf_fwhm = found.psf_pixel_size = UNRESOLVED
 
-    data = f.get("data")
+    data = _component(image_model, "data", "ImageData", f)
+    config = data.fields["config"] if isinstance(data, _Built) else data
+    if config is None:  # no ImageModel or ImageData: the only data_configure_simple call
+        config = _only(f.get("built:data_configure_simple"))
     for attr, alias in (*_GRID_ALIASES, ("exposure_time", None), ("background_rms", None)):
-        value = data.get(attr) if isinstance(data, dict) else data
+        if isinstance(config, _Built):
+            value = config.fields[attr]
+        elif config is _NOT_GIVEN or config is None:
+            value = None
+        else:
+            value = UNRESOLVED
         if value is None:
             # Fallback to plain assignments for the data block.
             value = symbols.get(attr, symbols.get(alias) if alias else None)
