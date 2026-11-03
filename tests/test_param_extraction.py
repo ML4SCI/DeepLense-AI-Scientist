@@ -231,6 +231,14 @@ def test_validator_rejects_non_finite_numbers():
     assert validate_parameters(_params()).checks["finite_values"] is True
 
 
+def test_validator_gaussian_source_width_must_be_positive():
+    source = {"amp": 9.9, "sigma": 0.0, "center_x": 0.05, "center_y": 0.05}
+    res = validate_parameters(_params(source_model_list=["GAUSSIAN"], kwargs_source=[source]))
+    assert res.checks["gaussian_sigma"] is False
+    res = validate_parameters(_params(source_model_list=["GAUSSIAN"], kwargs_source=[dict(source, sigma=0.1)]))
+    assert res.checks["gaussian_sigma"] is True
+
+
 def test_blurred_centre_matches_the_gaussian_closed_form():
     from dlens.tools._param_validator import _blurred_centre
 
