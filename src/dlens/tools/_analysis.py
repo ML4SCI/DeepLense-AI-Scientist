@@ -18,17 +18,26 @@ from pydantic_ai import Agent, RunContext
 from dlens.schemas._downstream import AnalysisResult, InferResult
 
 
+def _average_ranks(scores: np.ndarray) -> np.ndarray:
+    """1-based ranks of ``scores``, with tied values sharing their average rank."""
+    _, inverse, counts = np.unique(scores, return_inverse=True, return_counts=True)
+    last_rank = np.cumsum(counts)
+    return (last_rank - (counts - 1) / 2.0)[inverse.reshape(-1)]
+
+
 def _macro_auc(probs: np.ndarray, y: np.ndarray, k: int) -> Optional[float]:
-    """Macro one-vs-rest ROC AUC via the rank (Mann-Whitney) statistic."""
+    """Macro one-vs-rest ROC AUC via the rank (Mann-Whitney) statistic.
+
+    Tied scores get average ranks, so the result does not depend on sample order
+    (e.g. a collapsed classifier that outputs identical probabilities scores 0.5).
+    """
     aucs: list[float] = []
     for c in range(k):
         pos = y == c
         n_pos, n_neg = int(pos.sum()), int((~pos).sum())
         if n_pos == 0 or n_neg == 0:
             continue
-        order = probs[:, c].argsort()
-        ranks = np.empty(len(y), dtype=np.float64)
-        ranks[order] = np.arange(1, len(y) + 1)
+        ranks = _average_ranks(probs[:, c])
         aucs.append((ranks[pos].sum() - n_pos * (n_pos + 1) / 2) / (n_pos * n_neg))
     return float(np.mean(aucs)) if aucs else None
 
