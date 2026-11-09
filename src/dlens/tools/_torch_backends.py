@@ -3,7 +3,7 @@
 
 Builds a genuine CNN from the Model Design agent's ``ArchitectureSpec`` (a
 from-scratch ResNet — no torchvision dependency, single-channel friendly), trains
-it with the ``TrainingConfig`` hyperparameters on MPS (Apple Silicon) or CPU, and
+it with the ``TrainingConfig`` hyperparameters on CUDA, MPS (Apple Silicon), or CPU, and
 runs held-out inference from the saved checkpoint.
 
 torch is imported lazily so the framework (and the offline test suite) works
@@ -39,8 +39,21 @@ def _require_torch():
 
 
 def _device(torch):
-    if torch.backends.mps.is_available():
-        return torch.device("mps")
+    """Select best available device: CUDA -> MPS -> CPU."""
+    try:
+        if hasattr(torch, "cuda") and torch.cuda.is_available():
+            return torch.device("cuda")
+    except Exception:
+        pass
+    try:
+        if (
+            hasattr(torch, "backends")
+            and hasattr(torch.backends, "mps")
+            and torch.backends.mps.is_available()
+        ):
+            return torch.device("mps")
+    except Exception:
+        pass
     return torch.device("cpu")
 
 
