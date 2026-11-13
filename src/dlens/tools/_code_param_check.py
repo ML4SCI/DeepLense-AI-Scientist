@@ -9,27 +9,52 @@ regex) and diffs them against the validated set, field by field.
 Resolution rules (in order):
 * literals (including unary minus and constant-folding of + - * / ** on
   resolved operands, so ``10**3`` and ``-0.1`` work);
-* names resolved through a symbol table built from simple ``name = value``
-  assignments in source order.
-Anything else (function calls, loop variables, attribute reads) is reported as
-UNRESOLVED — never guessed, and unresolved values do NOT pass.
+* names, through a symbol table of ``name = value`` assignments, including
+  annotated (``name: int = value``) and augmented (``name += value``) ones;
+* constant subscripts of resolved dicts and lists (gpt-5.2 routinely routes
+  literals through kwargs dicts, e.g. ``kwargs_data["exposure_time"]``), and
+  ``**`` expansions of resolved dicts, applied in order;
+* the lenstronomy objects a name holds: ``LensModel``, ``LightModel``, ``PSF``,
+  ``data_configure_simple``, ``ImageData`` and ``ImageModel`` calls are followed
+  through assignments.
+Anything else (other calls, loop variables, attribute reads) is reported as
+UNRESOLVED — never guessed, and unresolved values do NOT pass. A None the script
+passes, explicitly or as lenstronomy's default, is compared like any other value;
+a field is missing only when nothing in the script sets it.
+
+The script is followed the way it runs. A branch whose condition is known
+statically (``if False:``, ``if DEBUG:`` with ``DEBUG = True``, ``if __name__ ==
+"__main__":``) contributes only the side that runs; a function body counts
+only where the function is called, in its own scope, and nothing after a return,
+break, continue or sys.exit() runs (a path that raises renders nothing, so it is
+dropped). When the path depends on runtime values (another condition, a loop, an
+exception), a value that differs between the possible paths is UNRESOLVED.
 
 Where each field is looked for:
-* ``lens_model_list``/``source_model_list``: a ``lens_model_list=`` /
-  ``light_model_list=`` call keyword, or an assignment to that name
-  (``source_model_list`` also accepted).
-* ``kwargs_lens``/``kwargs_source``: assignments to those names.
-* ``numPix``/``deltaPix``: the first two arguments of a
-  ``data_configure_simple(...)`` call, falling back to same-named assignments.
-* ``exposure_time``/``background_rms``: keywords of that call, falling back to
-  same-named assignments.
-* PSF ``fwhm``: the ``fwhm=`` keyword of a ``PSF(...)`` call.
+* ``kwargs_lens``/``kwargs_source``: the arguments of the last
+  ``ImageModel.image(...)`` call, positional or by keyword, since that is what
+  is rendered (an argument the call leaves out is missing); without such a
+  call, assignments to those names.
+* ``lens_model_list``/``source_model_list``: the ``LensModel``/``LightModel``
+  passed to the ``ImageModel`` that renders (UNRESOLVED if that argument, or the
+  ImageModel itself, cannot be followed); with no ImageModel at all, the only one
+  the script builds, else an assignment to that name (``light_model_list`` is
+  accepted for the source too).
+* ``numPix``/``deltaPix``/``exposure_time``/``background_rms``: the arguments of
+  the ``data_configure_simple(...)`` behind the ``ImageData(**...)`` given to that
+  ``ImageModel`` (same rules), positional or by keyword in either the 1.9.2
+  (``numPix``) or 1.14.1+ (``num_pix``) spelling, falling back to assignments to
+  either name.
+* PSF ``psf_type``/``fwhm``/``pixel_size``: the ``PSF(...)`` passed to that
+  ``ImageModel``, under the same rules. lenstronomy's default ``psf_type`` is
+  ``'NONE'``, so leaving it out counts as ``'NONE'``.
 """
 
 from __future__ import annotations
 
 import ast
-from typing import Any, Optional
+from dataclasses import dataclass
+from typing import Any
 
 from dlens.schemas._lens_params import CodeParamComparison, FieldComparison, LensParameterSet
 
@@ -37,20 +62,64 @@ UNRESOLVED = "<unresolved>"
 
 _REL_TOL = 1e-6
 
+# data_configure_simple's grid arguments: lenstronomy 1.9.2 spelling, 1.14+ spelling.
+_GRID_ALIASES = (("numPix", "num_pix"), ("deltaPix", "delta_pix"))
+
+# The leading parameters of the calls the check follows (identical in 1.9.2 and 1.14).
+_PARAMETERS = {
+    "LensModel": ("lens_model_list",),
+    "LightModel": ("light_model_list",),
+    "PSF": ("psf_type", "fwhm", "truncation", "pixel_size"),
+    "ImageModel": ("data_class", "psf_class", "lens_model_class", "source_model_class"),
+    "data_configure_simple": ("numPix", "deltaPix", "exposure_time", "background_rms"),
+    "image": ("kwargs_lens", "kwargs_source"),
+}
+_PSF_DEFAULT_TYPE = "NONE"
+# The calls whose results the check follows through names.
+_BUILDERS = ("LensModel", "LightModel", "PSF", "ImageModel", "ImageData", "data_configure_simple")
+
+# Names whose assignments stand in for a field when nothing more direct is found.
+_CONVENTIONAL = {"lens_model_list": "lens_model_list", "source_model_list": "source_model_list",
+                 "light_model_list": "source_model_list", "kwargs_lens": "kwargs_lens",
+                 "kwargs_source": "kwargs_source"}
+
+_ABSENT = object()  # marks a key missing on one control-flow path
+
+
+class _Missing:
+    def __repr__(self) -> str:
+        return "<missing>"
+
+
+# Not found in the script (or not given to the rendering ImageModel), as distinct from
+# an explicit None, which is a value the script passes and is compared like any other.
+_MISSING = _Missing()
+_MAX_CALL_DEPTH = 20
+
+
+@dataclass
+class _Built:
+    """A lenstronomy object the script builds, with the arguments the check follows."""
+
+    kind: str
+    fields: dict[str, Any]
+
 
 class _Extracted:
-    """What the AST walk recovered from the script (None = not found)."""
+    """What the AST walk recovered from the script (_MISSING = not found)."""
 
     def __init__(self) -> None:
-        self.lens_model_list: Optional[Any] = None
-        self.source_model_list: Optional[Any] = None
-        self.kwargs_lens: Optional[Any] = None
-        self.kwargs_source: Optional[Any] = None
-        self.numPix: Optional[Any] = None
-        self.deltaPix: Optional[Any] = None
-        self.exposure_time: Optional[Any] = None
-        self.background_rms: Optional[Any] = None
-        self.psf_fwhm: Optional[Any] = None
+        self.lens_model_list: Any = _MISSING
+        self.source_model_list: Any = _MISSING
+        self.kwargs_lens: Any = _MISSING
+        self.kwargs_source: Any = _MISSING
+        self.numPix: Any = _MISSING
+        self.deltaPix: Any = _MISSING
+        self.exposure_time: Any = _MISSING
+        self.background_rms: Any = _MISSING
+        self.psf_type: Any = _MISSING
+        self.psf_fwhm: Any = _MISSING
+        self.psf_pixel_size: Any = _MISSING
 
 
 def _resolve(node: ast.AST, symbols: dict[str, Any]) -> Any:
@@ -59,7 +128,7 @@ def _resolve(node: ast.AST, symbols: dict[str, Any]) -> Any:
         return node.value
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
         val = _resolve(node.operand, symbols)
-        if isinstance(val, (int, float)):
+        if isinstance(val, (int, float)) and not isinstance(val, bool):
             return -val if isinstance(node.op, ast.USub) else val
         return UNRESOLVED
     if isinstance(node, ast.Name):
@@ -68,7 +137,7 @@ def _resolve(node: ast.AST, symbols: dict[str, Any]) -> Any:
         node.op, (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow)
     ):
         left, right = _resolve(node.left, symbols), _resolve(node.right, symbols)
-        if isinstance(left, (int, float)) and isinstance(right, (int, float)):
+        if all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in (left, right)):
             try:
                 if isinstance(node.op, ast.Add):
                     return left + right
@@ -83,15 +152,14 @@ def _resolve(node: ast.AST, symbols: dict[str, Any]) -> Any:
                 return UNRESOLVED
         return UNRESOLVED
     if isinstance(node, ast.Subscript):
-        # Still fully static: dict/list literal reached through a name, indexed
-        # by a constant (gpt-5.2 routinely routes literals through kwargs
-        # dicts, e.g. kwargs_data["exposure_time"]).
+        # Still fully static: a dict or list literal reached through a name and
+        # indexed by a constant, e.g. kwargs_data["exposure_time"].
         base = _resolve(node.value, symbols)
         key = _resolve(node.slice, symbols)
-        if isinstance(base, dict) and not isinstance(key, ast.AST) and key in base:
+        if isinstance(base, dict) and isinstance(key, (str, int, float)) and key in base:
             return base[key]
         if (
-            isinstance(base, list)
+            isinstance(base, (list, tuple))
             and isinstance(key, int)
             and not isinstance(key, bool)
             and 0 <= key < len(base)
@@ -100,12 +168,25 @@ def _resolve(node: ast.AST, symbols: dict[str, Any]) -> Any:
         return UNRESOLVED
     if isinstance(node, ast.List):
         return [_resolve(el, symbols) for el in node.elts]
+    if isinstance(node, ast.Tuple):
+        return tuple(_resolve(el, symbols) for el in node.elts)
     if isinstance(node, ast.Dict):
         out: dict[Any, Any] = {}
         for k, v in zip(node.keys, node.values):
-            key = _resolve(k, symbols) if k is not None else UNRESOLVED
+            if k is None:
+                # **mapping: merged in order, so it can override an earlier key.
+                mapping = _resolve(v, symbols)
+                if not isinstance(mapping, dict):
+                    return UNRESOLVED
+                out.update(mapping)
+                continue
+            key = _resolve(k, symbols)
+            if key == UNRESOLVED or not isinstance(key, (str, int, float, bool, type(None))):
+                return UNRESOLVED  # an unknown key could override any of the others
             out[key] = _resolve(v, symbols)
         return out
+    if isinstance(node, ast.Call):
+        return _build(node, symbols)
     return UNRESOLVED
 
 
@@ -118,62 +199,475 @@ def _call_name(call: ast.Call) -> str:
     return ""
 
 
+def _arguments(call: ast.Call, symbols: dict[str, Any], names: tuple[str, ...]) -> dict[str, Any]:
+    """The call's arguments, resolved and bound to the callee's leading parameter ``names``.
+
+    Keyword arguments are kept under their own names. An argument the call does
+    not pass is absent, or UNRESOLVED when a ``*`` or ``**`` expansion that cannot
+    be resolved might be passing it.
+    """
+    out: dict[str, Any] = {}
+    opaque = False
+    for i, arg in enumerate(call.args):
+        if isinstance(arg, ast.Starred):
+            opaque = True
+            break
+        if i < len(names):
+            out[names[i]] = _resolve(arg, symbols)
+    for keyword in call.keywords:
+        if keyword.arg is not None:
+            out[keyword.arg] = _resolve(keyword.value, symbols)
+            continue
+        mapping = _resolve(keyword.value, symbols)
+        if isinstance(mapping, dict):
+            out.update({k: v for k, v in mapping.items() if isinstance(k, str)})
+        else:
+            opaque = True
+    if opaque:
+        for name in names:
+            out.setdefault(name, UNRESOLVED)
+    return out
+
+
+def _build(call: ast.Call, symbols: dict[str, Any]) -> Any:
+    """What a call returns, as far as the check follows it."""
+    name = _call_name(call)
+    if name not in _BUILDERS:
+        return UNRESOLVED
+    if name == "ImageData":
+        # Followed when built as ImageData(**kwargs_data) from data_configure_simple.
+        expansions = [k.value for k in call.keywords if k.arg is None]
+        config = _resolve(expansions[0], symbols) if len(expansions) == 1 and not call.args else UNRESOLVED
+        is_config = isinstance(config, _Built) and config.kind == "data_configure_simple"
+        return _Built("ImageData", {"config": config if is_config else UNRESOLVED})
+    args = _arguments(call, symbols, _PARAMETERS[name])
+    if name == "data_configure_simple":
+        for camel, snake in _GRID_ALIASES:
+            if snake in args:
+                args[camel] = args.pop(snake)
+        # numPix and deltaPix are required; exposure_time and background_rms default to None.
+        return _Built(name, {k: args.get(k, _MISSING if k in ("numPix", "deltaPix") else None)
+                             for k in _PARAMETERS[name]})
+    if name == "PSF":
+        return _Built("PSF", {"psf_type": args.get("psf_type", _PSF_DEFAULT_TYPE),
+                              "fwhm": args.get("fwhm"), "pixel_size": args.get("pixel_size")})
+    if name == "ImageModel":
+        return _Built("ImageModel", {"data": args.get("data_class"), "psf": args.get("psf_class"),
+                                     "lens": args.get("lens_model_class"),
+                                     "source": args.get("source_model_class")})
+    return _Built(name, {"models": args.get(_PARAMETERS[name][0], _MISSING)})
+
+
+def _truth(node: ast.AST, symbols: dict[str, Any]) -> bool | None:
+    """The condition's value when it is known statically, else None."""
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+        value = _truth(node.operand, symbols)
+        return None if value is None else not value
+    if isinstance(node, ast.BoolOp):
+        values = [_truth(v, symbols) for v in node.values]
+        decisive = isinstance(node.op, ast.Or)  # True decides an `or`, False an `and`
+        if decisive in values:
+            return decisive
+        return (not decisive) if all(v is not None for v in values) else None
+    if isinstance(node, ast.Compare) and len(node.ops) == 1:
+        left, right = node.left, node.comparators[0]
+        if (isinstance(left, ast.Name) and left.id == "__name__"
+                and isinstance(right, ast.Constant) and right.value == "__main__"
+                and isinstance(node.ops[0], (ast.Eq, ast.NotEq))):
+            # The check is about the script run directly.
+            return isinstance(node.ops[0], ast.Eq)
+        a, b = _resolve(left, symbols), _resolve(right, symbols)
+        scalars = (str, int, float, bool, type(None))
+        if a == UNRESOLVED or b == UNRESOLVED or not (isinstance(a, scalars) and isinstance(b, scalars)):
+            return None
+        op = node.ops[0]
+        try:
+            if isinstance(op, ast.Eq):
+                return a == b
+            if isinstance(op, ast.NotEq):
+                return a != b
+            if isinstance(op, ast.Is):
+                return a is b
+            if isinstance(op, ast.IsNot):
+                return a is not b
+            if isinstance(op, ast.Lt):
+                return a < b
+            if isinstance(op, ast.LtE):
+                return a <= b
+            if isinstance(op, ast.Gt):
+                return a > b
+            if isinstance(op, ast.GtE):
+                return a >= b
+        except TypeError:
+            return None
+        return None
+    value = _resolve(node, symbols)
+    if value == UNRESOLVED or isinstance(value, _Built):
+        return None
+    return bool(value)
+
+
+def _names_bound(target: ast.AST) -> list[str]:
+    """Every plain name an assignment target or loop variable binds."""
+    return [n.id for n in ast.walk(target) if isinstance(n, ast.Name)]
+
+
+def _calls_in_order(node: ast.AST) -> list[ast.Call]:
+    """The calls inside an expression or simple statement, in evaluation order."""
+    out: list[ast.Call] = []
+
+    def visit(n: ast.AST) -> None:
+        if isinstance(n, ast.Lambda):
+            return  # its body runs only when called
+        for child in ast.iter_child_nodes(n):
+            visit(child)
+        if isinstance(n, ast.Call):
+            out.append(n)
+
+    visit(node)
+    return out
+
+
+class _State:
+    """The names bound on one control-flow path, and what that path built and rendered."""
+
+    def __init__(self, symbols: dict[str, Any] | None = None,
+                 found: dict[str, Any] | None = None) -> None:
+        self.symbols: dict[str, Any] = dict(symbols or {})
+        self.found: dict[str, Any] = dict(found or {})
+
+    def copy(self) -> _State:
+        return _State(self.symbols, self.found)
+
+    def take(self, other: _State) -> None:
+        self.symbols, self.found = other.symbols, other.found
+
+
+def _merge(paths: list[_State]) -> _State:
+    """Join control-flow paths: anything that differs between them is UNRESOLVED."""
+    merged = _State()
+    for attr in ("symbols", "found"):
+        tables = [getattr(p, attr) for p in paths]
+        out = getattr(merged, attr)
+        for key in {k for t in tables for k in t}:
+            values = [t.get(key, _ABSENT) for t in tables]
+            same = values[0] is not _ABSENT and all(v == values[0] for v in values[1:])
+            out[key] = values[0] if same else UNRESOLVED
+    return merged
+
+
+class _Walker:
+    """Follows the script statement by statement, the way it runs.
+
+    ``block`` and ``statement`` return True when control cannot fall through: after a
+    return, raise, break or continue, or a call that never returns. A return keeps
+    its path's state for the function's caller, a break or continue for the loop's
+    exit, and sys.exit() for the end of the program. A raise drops its path: a script
+    that raises renders nothing.
+    """
+
+    def __init__(self) -> None:
+        self.functions: dict[str, ast.FunctionDef | ast.AsyncFunctionDef] = {}
+        self.active: list[str] = []
+        self.returns: list[list[_State]] = []  # one list per running function
+        self.loop_exits: list[list[_State]] = []  # one list per running loop
+        self.program_exits: list[_State] = []
+
+    def block(self, stmts: list[ast.stmt], state: _State) -> bool:
+        for stmt in stmts:
+            if self.statement(stmt, state):
+                return True  # the rest of the block never runs
+        return False
+
+    def statement(self, node: ast.stmt, state: _State) -> bool:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            self.functions[node.name] = node  # the body runs only where it is called
+            state.symbols[node.name] = UNRESOLVED
+            return False
+        if isinstance(node, ast.ClassDef):
+            state.symbols[node.name] = UNRESOLVED
+            return False
+        if isinstance(node, ast.If):
+            if self.calls(node.test, state):
+                return True
+            value = _truth(node.test, state.symbols)
+            if value is not None:
+                return self.block(node.body if value else node.orelse, state)
+            return self.branches([(node.body, state.copy()), (node.orelse, state.copy())], state)
+        if isinstance(node, (ast.For, ast.AsyncFor, ast.While)):
+            return self.loop(node, state)
+        if isinstance(node, (ast.With, ast.AsyncWith)):
+            for item in node.items:
+                if self.calls(item.context_expr, state):
+                    return True
+                if item.optional_vars is not None:
+                    self.bind(item.optional_vars, UNRESOLVED, state)
+            return self.block(node.body, state)
+        if isinstance(node, ast.Try) or type(node).__name__ == "TryStar":
+            return self.attempt(node, state)
+        if isinstance(node, ast.Match):
+            if self.calls(node.subject, state):
+                return True
+            cases = []
+            for case in node.cases:
+                path = state.copy()
+                for name in _names_bound(case.pattern):
+                    path.symbols[name] = UNRESOLVED
+                cases.append((case.body, path))
+            return self.branches([*cases, ([], state.copy())], state)  # or no case matches
+        if self.calls(node, state):
+            return True
+        if isinstance(node, ast.Assign):
+            value = _resolve(node.value, state.symbols)
+            for target in node.targets:
+                self.bind(target, value, state)
+        elif isinstance(node, ast.AnnAssign):
+            if node.value is not None:  # a bare annotation binds nothing
+                self.bind(node.target, _resolve(node.value, state.symbols), state)
+        elif isinstance(node, ast.AugAssign):
+            if isinstance(node.target, ast.Name):  # x += v is x = x + v; x[...] += v is an in-place edit
+                current = ast.BinOp(left=ast.Name(id=node.target.id, ctx=ast.Load()), op=node.op, right=node.value)
+                self.bind(node.target, _resolve(current, state.symbols), state)
+        elif isinstance(node, ast.Return):
+            if self.returns:
+                self.returns[-1].append(state.copy())
+            return True
+        elif isinstance(node, ast.Raise):
+            return True
+        elif isinstance(node, (ast.Break, ast.Continue)):
+            if self.loop_exits:
+                self.loop_exits[-1].append(state.copy())
+            return True
+        return False
+
+    def branches(self, paths: list[tuple[list[ast.stmt], _State]], state: _State) -> bool:
+        """Run alternative blocks, each from its own copy of the state; join the ones that fall through."""
+        through = [path for body, path in paths if not self.block(body, path)]
+        if not through:
+            return True
+        state.take(_merge(through))
+        return False
+
+    def loop(self, node: ast.For | ast.AsyncFor | ast.While, state: _State) -> bool:
+        """The body runs zero or more times: iterate until the joined state is stable."""
+        if isinstance(node, ast.While):
+            if self.calls(node.test, state):
+                return True
+            if _truth(node.test, state.symbols) is False:
+                return self.block(node.orelse, state)
+        elif self.calls(node.iter, state):
+            return True
+        entry = state.copy()
+        for _ in range(3):
+            body = entry.copy()
+            if not isinstance(node, ast.While):
+                self.bind(node.target, UNRESOLVED, body)
+            self.loop_exits.append([])
+            ended = self.block(node.body, body)
+            exits = self.loop_exits.pop()
+            joined = _merge([state, *([] if ended else [body]), *exits])
+            if joined.symbols == entry.symbols and joined.found == entry.found:
+                break
+            entry = joined
+        state.take(entry)
+        return self.block(node.orelse, state)
+
+    def attempt(self, node: ast.AST, state: _State) -> bool:
+        """try/except: a handler may start from any point in the body."""
+        before = state.copy()
+        ended = self.block(node.body, state) or self.block(node.orelse, state)
+        paths = [] if ended else [state.copy()]
+        for handler in node.handlers:
+            path = _merge([before, state])
+            if handler.name:
+                path.symbols[handler.name] = UNRESOLVED
+            if not self.block(handler.body, path):
+                paths.append(path)
+        if paths:
+            state.take(_merge(paths))
+        return self.block(node.finalbody, state) or not paths
+
+    def bind(self, target: ast.AST, value: Any, state: _State) -> None:
+        if isinstance(target, ast.Name):
+            state.symbols[target.id] = value
+            if target.id in _CONVENTIONAL:
+                state.found[f"assigned:{_CONVENTIONAL[target.id]}"] = value
+        elif isinstance(target, (ast.Tuple, ast.List)):
+            parts = list(value) if isinstance(value, (list, tuple)) else None
+            starred = any(isinstance(el, ast.Starred) for el in target.elts)
+            if parts is None or starred or len(parts) != len(target.elts):
+                parts = [UNRESOLVED] * len(target.elts)
+            for el, part in zip(target.elts, parts):
+                self.bind(el.value if isinstance(el, ast.Starred) else el, part, state)
+        # Attribute and subscript targets (in-place edits) are not followed.
+
+    def calls(self, node: ast.AST, state: _State) -> bool:
+        """Follow the calls in an expression or simple statement; True if one never returns."""
+        for call in _calls_in_order(node):
+            if self.call(call, state):
+                return True
+        return False
+
+    def call(self, call: ast.Call, state: _State) -> bool:
+        name, found = _call_name(call), state.found
+        if name in _BUILDERS:
+            key = f"built:{name}"
+            previous = found.get(key, ())
+            found[key] = UNRESOLVED if previous == UNRESOLVED else previous + (_build(call, state.symbols),)
+        elif name == "image" and isinstance(call.func, ast.Attribute):
+            args = _arguments(call, state.symbols, _PARAMETERS["image"])
+            found["rendered"] = {"kwargs_lens": args.get("kwargs_lens", _MISSING),
+                                 "kwargs_source": args.get("kwargs_source", _MISSING),
+                                 "image_model": _resolve(call.func.value, state.symbols)}
+        if _is_exit_call(call):
+            self.program_exits.append(state.copy())
+            return True
+        if isinstance(call.func, ast.Name) and call.func.id in self.functions:
+            return self.run(self.functions[call.func.id], call, state)
+        return False
+
+    def run(self, fn: ast.FunctionDef | ast.AsyncFunctionDef, call: ast.Call, state: _State) -> bool:
+        """Run a called function's body in its own scope; what it builds still counts.
+
+        Returns True when the function never returns (every path raises or exits).
+        """
+        if fn.name in self.active or len(self.active) >= _MAX_CALL_DEPTH:
+            return False
+        a = fn.args
+        positional = [p.arg for p in (*a.posonlyargs, *a.args)]
+        given = _arguments(call, state.symbols, tuple(positional))
+        local = _State(state.symbols, state.found)
+        defaults = dict(zip(positional[len(positional) - len(a.defaults):], a.defaults))
+        defaults.update({p.arg: d for p, d in zip(a.kwonlyargs, a.kw_defaults) if d is not None})
+        for p in (*positional, *(k.arg for k in a.kwonlyargs)):
+            if p in given:
+                local.symbols[p] = given[p]
+            elif p in defaults:
+                local.symbols[p] = _resolve(defaults[p], state.symbols)
+            else:
+                local.symbols[p] = UNRESOLVED
+        for extra in (a.vararg, a.kwarg):
+            if extra is not None:
+                local.symbols[extra.arg] = UNRESOLVED
+        shared = {n for node in ast.walk(fn) if isinstance(node, ast.Global) for n in node.names}
+        self.active.append(fn.name)
+        self.returns.append([])
+        ended = self.block(fn.body, local)
+        paths = self.returns.pop() + ([] if ended else [local])
+        self.active.pop()
+        if not paths:
+            return True
+        final = _merge(paths)
+        state.found = final.found
+        for name in shared & set(final.symbols):
+            state.symbols[name] = final.symbols[name]
+        return False
+
+
+def _is_exit_call(call: ast.Call) -> bool:
+    """sys.exit(), os._exit(), exit() or quit(): the program ends here."""
+    func = call.func
+    if isinstance(func, ast.Name):
+        return func.id in ("exit", "quit")
+    return (isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name)
+            and (func.value.id, func.attr) in (("sys", "exit"), ("os", "_exit")))
+
+
+def _only(built: Any) -> Any:
+    """The one object of a kind the script builds: None if none, UNRESOLVED if several differ."""
+    if built is None or built == UNRESOLVED:
+        return built
+    distinct: list[Any] = []
+    for b in built:
+        if b not in distinct:
+            distinct.append(b)
+    return distinct[0] if len(distinct) == 1 else UNRESOLVED
+
+
+def _component(image_model: Any, role: str, kind: str, found: dict[str, Any]) -> Any:
+    """The ``kind`` object the rendering ImageModel was given as ``role``.
+
+    Only a script that builds no ImageModel at all falls back to the one ``kind``
+    object it builds. An argument the check cannot follow, or an ImageModel it
+    cannot identify, leaves the component UNRESOLVED rather than guessing.
+    """
+    if isinstance(image_model, _Built):
+        given = image_model.fields[role]
+        if given is None:
+            return _MISSING
+        return given if isinstance(given, _Built) and given.kind == kind else UNRESOLVED
+    if image_model == UNRESOLVED:
+        return UNRESOLVED
+    return _only(found.get(f"built:{kind}"))
+
+
 def extract_lenstronomy_inputs(code: str) -> _Extracted:
     """Walk the script and recover the lenstronomy input values."""
     tree = ast.parse(code)
-    symbols: dict[str, Any] = {}
+    state = _State()
+    walker = _Walker()
+    ended = walker.block(tree.body, state)
+    # The script ends where it falls off the end or calls sys.exit(); if every path
+    # raises, there is no successful run, so the state as walked is kept.
+    paths = walker.program_exits + ([] if ended else [state])
+    if paths:
+        state = _merge(paths)
+    symbols, f = state.symbols, state.found
     found = _Extracted()
 
-    for node in ast.walk(tree):
-        # Symbol table: simple single-target assignments, source order is fine
-        # for generated scripts (ast.walk is close enough; shadowing is rare
-        # in single-shot generated code).
-        if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(
-            node.targets[0], ast.Name
-        ):
-            name = node.targets[0].id
-            value = _resolve(node.value, symbols)
-            symbols[name] = value
-            if name == "lens_model_list":
-                found.lens_model_list = value
-            elif name in ("source_model_list", "light_model_list"):
-                found.source_model_list = value
-            elif name == "kwargs_lens":
-                found.kwargs_lens = value
-            elif name == "kwargs_source":
-                found.kwargs_source = value
+    rendered = f.get("rendered")
+    image_model: Any = None
+    if rendered == UNRESOLVED:
+        found.kwargs_lens = found.kwargs_source = image_model = UNRESOLVED
+    elif rendered is not None:
+        # The arguments of the last image() call outrank same-named assignments.
+        found.kwargs_lens, found.kwargs_source = rendered["kwargs_lens"], rendered["kwargs_source"]
+        image_model = rendered["image_model"]
+        if not (isinstance(image_model, _Built) and image_model.kind == "ImageModel"):
+            image_model = UNRESOLVED  # the image() call's ImageModel cannot be identified
+    else:
+        found.kwargs_lens = f.get("assigned:kwargs_lens", _MISSING)
+        found.kwargs_source = f.get("assigned:kwargs_source", _MISSING)
+        image_model = _only(f.get("built:ImageModel"))
 
-        if isinstance(node, ast.Call):
-            cname = _call_name(node)
-            kw = {k.arg: k.value for k in node.keywords if k.arg}
-            if "lens_model_list" in kw and found.lens_model_list is None:
-                found.lens_model_list = _resolve(kw["lens_model_list"], symbols)
-            if "light_model_list" in kw and found.source_model_list is None:
-                found.source_model_list = _resolve(kw["light_model_list"], symbols)
-            if cname == "data_configure_simple":
-                if len(node.args) >= 2:
-                    found.numPix = _resolve(node.args[0], symbols)
-                    found.deltaPix = _resolve(node.args[1], symbols)
-                if "exposure_time" in kw:
-                    found.exposure_time = _resolve(kw["exposure_time"], symbols)
-                if "background_rms" in kw:
-                    found.background_rms = _resolve(kw["background_rms"], symbols)
-            if cname == "PSF" and "fwhm" in kw:
-                found.psf_fwhm = _resolve(kw["fwhm"], symbols)
+    for attr, role, kind in (("lens_model_list", "lens", "LensModel"),
+                             ("source_model_list", "source", "LightModel")):
+        model = _component(image_model, role, kind, f)
+        if isinstance(model, _Built):
+            setattr(found, attr, model.fields["models"])
+        elif model == UNRESOLVED:
+            setattr(found, attr, UNRESOLVED)
+        elif model is None:
+            setattr(found, attr, f.get(f"assigned:{attr}", _MISSING))
 
-    # Fallbacks to plain assignments for the data block.
-    for attr in ("numPix", "deltaPix", "exposure_time", "background_rms"):
-        if getattr(found, attr) is None and attr in symbols:
-            setattr(found, attr, symbols[attr])
+    psf = _component(image_model, "psf", "PSF", f)
+    if isinstance(psf, _Built):
+        found.psf_type, found.psf_fwhm = psf.fields["psf_type"], psf.fields["fwhm"]
+        found.psf_pixel_size = psf.fields["pixel_size"]
+    elif psf == UNRESOLVED:
+        found.psf_type = found.psf_fwhm = found.psf_pixel_size = UNRESOLVED
+
+    data = _component(image_model, "data", "ImageData", f)
+    config = data.fields["config"] if isinstance(data, _Built) else data
+    if config is None:  # no ImageModel or ImageData: the only data_configure_simple call
+        config = _only(f.get("built:data_configure_simple"))
+    for attr, alias in (*_GRID_ALIASES, ("exposure_time", None), ("background_rms", None)):
+        if isinstance(config, _Built):
+            value = config.fields[attr]  # an explicit or default None is what lenstronomy gets
+        elif config is None:  # no call found: fall back to plain assignments
+            value = symbols.get(attr, symbols.get(alias, _MISSING) if alias else _MISSING)
+        elif config is _MISSING:
+            value = _MISSING
+        else:
+            value = UNRESOLVED
+        setattr(found, attr, value)
     return found
 
 
 def _numbers_match(expected: float, actual: Any) -> bool:
     if not isinstance(actual, (int, float)) or isinstance(actual, bool):
         return False
-    return abs(float(actual) - float(expected)) <= _REL_TOL * max(
-        1.0, abs(float(expected))
-    )
+    return abs(float(actual) - float(expected)) <= _REL_TOL * max(1.0, abs(float(expected)))
 
 
 def compare_code_to_params(code: str, params: LensParameterSet) -> CodeParamComparison:
@@ -198,7 +692,7 @@ def compare_code_to_params(code: str, params: LensParameterSet) -> CodeParamComp
     unresolved: list[str] = []
 
     def record(field: str, expected: Any, actual: Any) -> None:
-        if actual is None:
+        if actual is _MISSING:
             missing.append(field)
         elif actual == UNRESOLVED:
             unresolved.append(field)
@@ -221,19 +715,25 @@ def compare_code_to_params(code: str, params: LensParameterSet) -> CodeParamComp
         ("kwargs_lens", params.kwargs_lens, found.kwargs_lens),
         ("kwargs_source", params.kwargs_source, found.kwargs_source),
     ):
-        if actual_kwargs is None:
+        if actual_kwargs is _MISSING:
             missing.append(label)
             continue
-        if not isinstance(actual_kwargs, list):
+        if actual_kwargs == UNRESOLVED:
             unresolved.append(label)
             continue
+        if not isinstance(actual_kwargs, (list, tuple)):
+            diverged.append(FieldComparison(field=label, expected=expected_kwargs, actual=actual_kwargs))
+            continue
         for i, exp_dict in enumerate(expected_kwargs):
+            if i < len(actual_kwargs) and actual_kwargs[i] == UNRESOLVED:
+                unresolved.append(f"{label}[{i}]")
+                continue
             if i >= len(actual_kwargs) or not isinstance(actual_kwargs[i], dict):
                 missing.append(f"{label}[{i}]")
                 continue
             for key, exp_val in exp_dict.items():
                 field = f"{label}[{i}].{key}"
-                record(field, exp_val, actual_kwargs[i].get(key))
+                record(field, exp_val, actual_kwargs[i].get(key, _MISSING))
 
     data = params.kwargs_data
     record("numPix", data.numPix, found.numPix)
@@ -242,8 +742,12 @@ def compare_code_to_params(code: str, params: LensParameterSet) -> CodeParamComp
         record("exposure_time", data.exposure_time, found.exposure_time)
     if data.background_rms is not None:
         record("background_rms", data.background_rms, found.background_rms)
-    if params.kwargs_psf.fwhm is not None:
-        record("psf_fwhm", params.kwargs_psf.fwhm, found.psf_fwhm)
+    psf = params.kwargs_psf
+    for field, expected, actual in (("psf_type", psf.psf_type, found.psf_type),
+                                    ("psf_fwhm", psf.fwhm, found.psf_fwhm),
+                                    ("psf_pixel_size", psf.pixel_size, found.psf_pixel_size)):
+        if expected is not None:
+            record(field, expected, actual)
 
     messages: list[str] = []
     for d in diverged:

@@ -156,3 +156,238 @@ def test_two_stage_fails_when_divergence_persists():
     assert res.codegen_passes == 2
     assert res.codegen is not None and res.codegen.ok  # sandbox fine; params diverged
     assert not res.code_param_comparison.passed
+
+
+def test_assignments_are_read_in_source_order():
+    # ast.walk is breadth-first, so a correct kwargs_lens nested in a block used
+    # to win over a later, wrong top-level reassignment.
+    wrong = [dict(GOOD_PARAMS["kwargs_lens"][0], theta_E=2.5)]
+    good_line = f"kwargs_lens = {GOOD_PARAMS['kwargs_lens']!r}\n"
+    program = _MATCHING_PROGRAM.replace(
+        good_line, f"if True:\n    {good_line}kwargs_lens = {wrong!r}\n"
+    )
+    assert program != _MATCHING_PROGRAM
+    comp = compare_code_to_params(program, _PARAMS)
+    assert not comp.passed
+    assert {d.field: d.actual for d in comp.diverged}.get("kwargs_lens[0].theta_E") == 2.5
+
+
+def test_grid_size_is_read_from_keywords_in_either_spelling():
+    # Only the first two positional arguments of data_configure_simple were
+    # read, so keyword calls were reported missing. 1.9.2 spells the keywords
+    # numPix/deltaPix; lenstronomy 1.14.1+ spells them num_pix/delta_pix.
+    base = "".join(line + "\n" for line in _MATCHING_PROGRAM.splitlines()
+                   if not line.startswith(("numPix", "deltaPix")))
+    base = base.replace("pixel_size=deltaPix", "pixel_size=0.08")  # deltaPix is no longer a name
+    call = ("kwargs_data = data_configure_simple({n}=64, {d}=0.08, "
+            "exposure_time=exposure_time, background_rms=background_rms)\n")
+    for n, d in (("numPix", "deltaPix"), ("num_pix", "delta_pix")):
+        comp = compare_code_to_params(base + call.format(n=n, d=d), _PARAMS)
+        assert comp.passed, (n, comp.messages)
+        assert "numPix" in comp.matched and "deltaPix" in comp.matched
+        wrong = compare_code_to_params(base + call.format(n=n, d=d).replace("=64", "=128"), _PARAMS)
+        assert "numPix" in [c.field for c in wrong.diverged]
+
+
+def test_the_kwargs_passed_to_image_are_the_ones_checked():
+    # kwargs_lens/kwargs_source were read from assignments to those names, so a
+    # script could define the validated list, render a different one, and pass.
+    wrong = [dict(GOOD_PARAMS["kwargs_lens"][0], theta_E=2.5)]
+    base = _MATCHING_PROGRAM + f"kwargs_lens_render = {wrong!r}\n"
+    for call in ("image_model.image(kwargs_lens=kwargs_lens_render, kwargs_source=kwargs_source)",
+                 "image_model.image(kwargs_lens_render, kwargs_source)"):
+        comp = compare_code_to_params(base + f"image = {call}\n", _PARAMS)
+        assert not comp.passed, call
+        assert {d.field: d.actual for d in comp.diverged}.get("kwargs_lens[0].theta_E") == 2.5
+
+    # The cheat-sheet's own script, which builds the ImageModel it renders with,
+    # still passes, and a computed argument is reported as unresolved rather than guessed.
+    ok = compare_code_to_params(_IMAGE_MODEL_PROGRAM, _PARAMS)
+    assert ok.passed, ok.messages
+    computed = compare_code_to_params(
+        _IMAGE_MODEL_PROGRAM.replace("image(kwargs_lens=kwargs_lens,", "image(kwargs_lens=make_lens(),"), _PARAMS)
+    assert "kwargs_lens" in computed.unresolved
+
+
+# The shape the codegen cheat-sheet asks for: every value reaches lenstronomy
+# through the calls that build and render the image.
+_IMAGE_MODEL_PROGRAM = """\
+import sys
+import lenstronomy.Util.simulation_util as sim_util
+from lenstronomy.Data.imaging_data import ImageData
+from lenstronomy.Data.psf import PSF
+from lenstronomy.ImSim.image_model import ImageModel
+from lenstronomy.LensModel.lens_model import LensModel
+from lenstronomy.LightModel.light_model import LightModel
+
+numPix = 64
+deltaPix = 0.08
+kwargs_data = sim_util.data_configure_simple(numPix, deltaPix, exposure_time=5400.0, background_rms=0.01)
+data_class = ImageData(**kwargs_data)
+psf_class = PSF(psf_type='GAUSSIAN', fwhm=0.15, pixel_size=deltaPix)
+lens_model_list = ['SIE']
+kwargs_lens = [{'theta_E': 1.0, 'e1': 0.1, 'e2': 0.0, 'center_x': 0.0, 'center_y': 0.0}]
+source_model_list = ['SERSIC_ELLIPSE']
+kwargs_source = [{'amp': 12.0, 'R_sersic': 0.3, 'n_sersic': 1.5, 'e1': 0.1, 'e2': 0.0,
+                  'center_x': 0.05, 'center_y': 0.05}]
+image_model = ImageModel(data_class, psf_class,
+                         lens_model_class=LensModel(lens_model_list=lens_model_list),
+                         source_model_class=LightModel(light_model_list=source_model_list),
+                         kwargs_numerics={'supersampling_factor': 1})
+image = image_model.image(kwargs_lens=kwargs_lens, kwargs_source=kwargs_source)
+"""
+_LENS = "kwargs_lens = [{'theta_E': 1.0"
+_WRONG_LENS = "kwargs_lens = [{'theta_E': 2.5, 'e1': 0.1, 'e2': 0.0, 'center_x': 0.0, 'center_y': 0.0}]\n"
+
+
+def _diverged(comp) -> dict:
+    return {c.field: c.actual for c in comp.diverged}
+
+
+def test_image_model_program_matches():
+    comp = compare_code_to_params(_IMAGE_MODEL_PROGRAM, _PARAMS)
+    assert comp.passed, comp.messages
+    assert {"psf_type", "psf_pixel_size", "lens_model_list"} <= set(comp.matched)
+
+
+def test_dict_unpacking_is_applied_in_order():
+    # {'theta_E': 1.0, **{'theta_E': 2.5}} renders 2.5; the override must not be ignored.
+    comp = compare_code_to_params(_IMAGE_MODEL_PROGRAM.replace(
+        _LENS, "kwargs_lens = [{'theta_E': 1.0, **{'theta_E': 2.5}"), _PARAMS)
+    assert _diverged(comp) == {"kwargs_lens[0].theta_E": 2.5}
+
+    comp = compare_code_to_params(_IMAGE_MODEL_PROGRAM.replace(
+        _LENS, "key = pick()\nkwargs_lens = [{key: 2.5, 'theta_E': 1.0"), _PARAMS)
+    assert "kwargs_lens[0]" in comp.unresolved
+
+    comp = compare_code_to_params(_IMAGE_MODEL_PROGRAM.replace(
+        "kwargs_lens = [{'theta_E': 1.0, 'e1': 0.1, 'e2': 0.0, 'center_x': 0.0, 'center_y': 0.0}]",
+        "base = {'e1': 0.1, 'e2': 0.0, 'center_x': 0.0, 'center_y': 0.0}\n"
+        "kwargs_lens = [{**base, 'theta_E': 1.0}]"), _PARAMS)
+    assert comp.passed, comp.messages
+
+
+def test_code_that_does_not_run_does_not_count():
+    for wrapper in ("if False:\n    ", "def unused():\n    "):
+        comp = compare_code_to_params(_IMAGE_MODEL_PROGRAM.replace(_LENS, _WRONG_LENS + wrapper + _LENS), _PARAMS)
+        assert _diverged(comp).get("kwargs_lens[0].theta_E") == 2.5, wrapper
+
+    # A branch that depends on runtime values: either kwargs_lens may be rendered.
+    comp = compare_code_to_params(_IMAGE_MODEL_PROGRAM.replace(
+        _LENS, _WRONG_LENS + "if len(sys.argv) > 2:\n    " + _LENS), _PARAMS)
+    assert "kwargs_lens" in comp.unresolved
+
+    # A function counts where it is called, here under the __main__ guard.
+    head, body = _IMAGE_MODEL_PROGRAM.split("numPix = 64")
+    body = "".join(f"    {line}\n" if line.strip() else "\n" for line in ("numPix = 64" + body).splitlines())
+    script = head + "def main():\n" + body + "\nif __name__ == '__main__':\n    main()\n"
+    assert compare_code_to_params(script, _PARAMS).passed
+    assert "kwargs_lens" in compare_code_to_params(script.replace("    main()", "    pass"), _PARAMS).missing
+
+
+def test_code_after_return_or_exit_does_not_count():
+    call = "image = image_model.image(kwargs_lens=kwargs_lens, kwargs_source=kwargs_source)"
+    wrong = "wrong = [{'theta_E': 2.5, 'e1': 0.1, 'e2': 0.0, 'center_x': 0.0, 'center_y': 0.0}]\n"
+    render = ("def render():\n"
+              "    image = image_model.image(kwargs_lens=wrong, kwargs_source=kwargs_source)\n"
+              "    return image\n"
+              "    image = image_model.image(kwargs_lens=kwargs_lens, kwargs_source=kwargs_source)\n"
+              "image = render()\n")
+    exits = "image = image_model.image(kwargs_lens=wrong, kwargs_source=kwargs_source)\nsys.exit(0)\n" + call
+    for replacement in (render, exits):
+        comp = compare_code_to_params(_IMAGE_MODEL_PROGRAM.replace(call, wrong + replacement), _PARAMS)
+        assert _diverged(comp) == {"kwargs_lens[0].theta_E": 2.5}, replacement
+
+    # A path that raises renders nothing, so a guard does not make the result
+    # unresolved, and sys.exit(main()) still runs main().
+    guarded = _IMAGE_MODEL_PROGRAM.replace(call, "if len(sys.argv) > 5:\n    raise SystemExit('usage')\n" + call)
+    assert compare_code_to_params(guarded, _PARAMS).passed
+    head, body = _IMAGE_MODEL_PROGRAM.split("numPix = 64")
+    body = "".join(f"    {line}\n" if line.strip() else "\n" for line in ("numPix = 64" + body).splitlines())
+    script = head + "def main():\n" + body + "    return 0\n\nif __name__ == '__main__':\n    sys.exit(main())\n"
+    assert compare_code_to_params(script, _PARAMS).passed
+
+
+def test_the_model_classes_built_outrank_list_assignments():
+    comp = compare_code_to_params(_IMAGE_MODEL_PROGRAM.replace(
+        "LensModel(lens_model_list=lens_model_list)", "LensModel(lens_model_list=['SIS'])"), _PARAMS)
+    assert _diverged(comp) == {"lens_model_list": ["SIS"]}
+
+    # The LightModel given to ImageModel as the source is the one checked, even
+    # when a lens-light LightModel is built too.
+    program = _IMAGE_MODEL_PROGRAM.replace(
+        "image_model = ImageModel(", "lens_light = LightModel(light_model_list=['SERSIC'])\n"
+        "image_model = ImageModel(").replace(
+        "kwargs_numerics=", "lens_light_model_class=lens_light, kwargs_numerics=")
+    assert compare_code_to_params(program, _PARAMS).passed
+
+
+def test_an_argument_the_check_cannot_follow_is_unresolved():
+    # The validated PSF and LensModel are built, but ImageModel is given something else.
+    for old, new, field in (
+        ("ImageModel(data_class, psf_class,", "ImageModel(data_class, get_psf(),", "psf_fwhm"),
+        ("lens_model_class=LensModel(lens_model_list=lens_model_list)",
+         "lens_model_class=make_lens_model(LensModel(lens_model_list=lens_model_list))", "lens_model_list"),
+    ):
+        comp = compare_code_to_params(_IMAGE_MODEL_PROGRAM.replace(old, new), _PARAMS)
+        assert field in comp.unresolved, field
+
+    # The ImageModel that renders cannot be identified: the one built earlier is not assumed.
+    call = "image = image_model.image("
+    comp = compare_code_to_params(_IMAGE_MODEL_PROGRAM.replace(call, "image_model = choose_image_model()\n" + call),
+                                  _PARAMS)
+    assert {"lens_model_list", "source_model_list", "psf_type"} <= set(comp.unresolved)
+
+
+def test_the_grid_is_read_from_the_imagedata_that_renders():
+    config = "kwargs_data = sim_util.data_configure_simple(numPix, deltaPix, exposure_time=5400.0, background_rms=0.01)"
+    assert config in _IMAGE_MODEL_PROGRAM
+    program = _IMAGE_MODEL_PROGRAM.replace(config, config.replace("(numPix,", "(128,")).replace(
+        "data_class = ImageData(**kwargs_data)\n",
+        "data_class = ImageData(**kwargs_data)\nunused = sim_util.data_configure_simple(64, 0.08)\n")
+    assert _diverged(compare_code_to_params(program, _PARAMS)) == {"numPix": 128}
+
+    # An ImageData the check cannot follow leaves the grid unresolved.
+    program = _IMAGE_MODEL_PROGRAM.replace("ImageData(**kwargs_data)", "ImageData(image_data=np.zeros((64, 64)))")
+    assert "numPix" in compare_code_to_params(program, _PARAMS).unresolved
+
+
+def test_an_explicit_none_is_kept():
+    # The assignments match, but data_configure_simple is passed None, which lenstronomy uses.
+    program = _MATCHING_PROGRAM + ("kwargs_data = data_configure_simple(numPix, deltaPix, "
+                                   "exposure_time=None, background_rms=None)\n")
+    assert _diverged(compare_code_to_params(program, _PARAMS)) == {"exposure_time": None, "background_rms": None}
+    # Left out, they default to None in lenstronomy too.
+    comp = compare_code_to_params(_MATCHING_PROGRAM + "kwargs_data = data_configure_simple(numPix, deltaPix)\n", _PARAMS)
+    assert set(_diverged(comp)) == {"exposure_time", "background_rms"}
+
+
+def test_annotated_and_augmented_assignments_are_followed():
+    grid = "numPix = 64\n"
+    for added in ("numPix: int = 128\n", "numPix += 64\n"):
+        comp = compare_code_to_params(_IMAGE_MODEL_PROGRAM.replace(grid, grid + added), _PARAMS)
+        assert _diverged(comp) == {"numPix": 128}, added
+    comp = compare_code_to_params(_IMAGE_MODEL_PROGRAM.replace(grid, grid + "numPix //= 1\n"), _PARAMS)
+    assert "numPix" in comp.unresolved  # not folded: unresolved
+    assert compare_code_to_params(_IMAGE_MODEL_PROGRAM.replace(grid, "numPix: int = 64\n"), _PARAMS).passed
+
+
+def test_arguments_left_out_of_image_are_missing():
+    call = "image_model.image(kwargs_lens=kwargs_lens, kwargs_source=kwargs_source)"
+    comp = compare_code_to_params(_IMAGE_MODEL_PROGRAM.replace(
+        call, "image_model.image(kwargs_lens=kwargs_lens)"), _PARAMS)
+    assert comp.missing == ["kwargs_source"]
+    comp = compare_code_to_params(_IMAGE_MODEL_PROGRAM.replace(call, "image_model.image()"), _PARAMS)
+    assert comp.missing == ["kwargs_lens", "kwargs_source"]
+
+
+def test_psf_type_and_pixel_size_are_compared():
+    psf = "PSF(psf_type='GAUSSIAN', fwhm=0.15, pixel_size=deltaPix)"
+    for changed, field, actual in (
+        ("PSF(psf_type='NONE', fwhm=0.15, pixel_size=deltaPix)", "psf_type", "NONE"),
+        ("PSF(fwhm=0.15, pixel_size=deltaPix)", "psf_type", "NONE"),  # lenstronomy's default
+        ("PSF(psf_type='GAUSSIAN', fwhm=0.15, pixel_size=0.05)", "psf_pixel_size", 0.05),
+    ):
+        comp = compare_code_to_params(_IMAGE_MODEL_PROGRAM.replace(psf, changed), _PARAMS)
+        assert _diverged(comp) == {field: actual}, changed
+

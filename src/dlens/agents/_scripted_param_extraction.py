@@ -25,7 +25,7 @@ GOOD_PARAMS: dict = {
     ],
     "source_model_list": ["SERSIC_ELLIPSE"],
     "kwargs_source": [
-        # amp sized so the calibrated peak-SNR estimate (~33) sits inside the
+        # amp sized so the calibrated peak-SNR estimate (~47) sits inside the
         # real-data acceptance band [14, 60] (see _param_validator._estimate_snr).
         {"amp": 12.0, "R_sersic": 0.3, "n_sersic": 1.5, "e1": 0.1, "e2": 0.0,
          "center_x": 0.05, "center_y": 0.05}

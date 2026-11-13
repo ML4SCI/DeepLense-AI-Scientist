@@ -43,6 +43,9 @@ PHYSICAL DEFAULTS (DeepLense conventions; use unless the request overrides):
   Model_I-like (0.05"/px, 1000-3000 s); amp>=12 for Euclid-like (565 s);
   amp>=6 for HST-like (5400 s). Scale amp up for shorter exposures, higher
   background, or finer pixel scales — and do NOT overshoot by more than ~3x.
+  These anchors are for n_sersic~1: amp is the brightness at R_sersic, and a
+  higher n puts more light in the centre, so use about half the amp at
+  n_sersic=2 and a fifth at n_sersic=4.
 - Halo mass 1e12 M_sun; vortex substructure => axion_mass (1e-24..1e-22 eV) and
   vortex_mass~3e10 M_sun. Record these in the metadata fields when the request
   is framed in DeepLense terms.
