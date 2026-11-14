@@ -23,6 +23,7 @@ import argparse
 import asyncio
 import glob
 import json
+import math
 import os
 import time
 
@@ -50,16 +51,32 @@ def _ref(root: str, classes: list[str]) -> DatasetRef:
 
 def _best_val_run(state: ExperimentState):
     """Select the iteration with the best VAL accuracy (selection happens on val only)."""
-    return max(state.runs, key=lambda r: r.infer_result.accuracy or -1.0)
+    valid_runs = [
+        r for r in state.runs
+        if r.infer_result.accuracy is not None
+        and math.isfinite(r.infer_result.accuracy)
+    ]
+    if not valid_runs:
+        raise RuntimeError("no finite validation accuracy was produced during tuning")
+    return max(valid_runs, key=lambda r: r.infer_result.accuracy)
+
+
+def _metric_text(value: float | None) -> str:
+    if value is None:
+        return "n/a"
+    return f"{value:.4f}" if math.isfinite(value) else "invalid"
 
 
 def _print_state(tag: str, state: ExperimentState) -> None:
     for r in state.runs:
         tr = r.train_result.metrics.get("train_accuracy", float("nan"))
-        va = r.infer_result.accuracy or float("nan")
+        va = r.infer_result.accuracy
         d = r.planner_decision
-        print(f"    [{tag}] it{r.iteration}: train={tr:.4f} val={va:.4f} gap={tr - va:+.4f} "
-              f"auc={r.analysis_result.macro_auc:.4f} -> {d.action.value if d else '-'} "
+        gap = tr - va if math.isfinite(tr) and va is not None and math.isfinite(va) else None
+        print(f"    [{tag}] it{r.iteration}: train={_metric_text(tr)} "
+              f"val={_metric_text(va)} gap={_metric_text(gap)} "
+              f"auc={_metric_text(r.analysis_result.macro_auc)} -> "
+              f"{d.action.value if d else '-'} "
               f"{d.updated_params if d else ''}", flush=True)
 
 
@@ -75,8 +92,9 @@ def final_test_evaluation(test_root: str, classes: list[str], arms: dict[str, di
         ar = compute_analysis(ir, classes)
         out[arm] = {"test_accuracy": ir.accuracy, "test_macro_auc": ar.macro_auc,
                     "per_class": ar.per_class, "confusion": ar.confusion_matrix}
-        print(f"  {arm:<16} val={info['val_accuracy']:.4f}  TEST acc={ir.accuracy:.4f}  "
-              f"TEST auc={ar.macro_auc:.4f}", flush=True)
+        print(f"  {arm:<16} val={_metric_text(info['val_accuracy'])}  "
+              f"TEST acc={_metric_text(ir.accuracy)} TEST auc={_metric_text(ar.macro_auc)}",
+              flush=True)
     return out
 
 
@@ -177,7 +195,7 @@ async def main() -> int:
             "training_config": best.training_config.model_dump(mode="json"),
         }
         print(f"  arm '{arm}': selected iteration {best.iteration} by val "
-              f"(val={best.infer_result.accuracy:.4f})", flush=True)
+              f"(val={_metric_text(best.infer_result.accuracy)})", flush=True)
 
     _ARMS_COMPLETE["done"] = True
 
@@ -192,8 +210,10 @@ async def main() -> int:
     print(f"  {'arm':<16} {'val acc':>8} {'test acc':>9} {'val auc':>8} {'test auc':>9}")
     for arm, info in arms_final.items():
         t = test_results[arm]
-        print(f"  {arm:<16} {info['val_accuracy']:>8.4f} {t['test_accuracy']:>9.4f} "
-              f"{info['val_macro_auc']:>8.4f} {t['test_macro_auc']:>9.4f}")
+        print(f"  {arm:<16} {_metric_text(info['val_accuracy']):>8} "
+              f"{_metric_text(t['test_accuracy']):>9} "
+              f"{_metric_text(info['val_macro_auc']):>8} "
+              f"{_metric_text(t['test_macro_auc']):>9}")
     print(f"  timings: {timings}")
 
     out = args.out_json or os.path.join(args.data_root, "paper_run.json")
