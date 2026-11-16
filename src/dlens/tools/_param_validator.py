@@ -293,7 +293,7 @@ def validate_parameters(
         messages.append(msg)
 
     def ok(name: str) -> None:
-        checks[name] = True
+        checks.setdefault(name, True)
 
     # --- every number finite -------------------------------------------------
     # No range check below bounds a centre or an amplitude, and NaN slips past
