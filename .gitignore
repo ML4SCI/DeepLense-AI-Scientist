@@ -151,6 +151,8 @@ activemq-data/
 
 # Environments
 .env
+.env.*
+!.env.example
 .envrc
 .venv
 env/
@@ -218,3 +220,15 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Super-resolution datasets, checkpoints, and local runs
+*.npy
+*.pt
+*.pth
+/data/local/
+/outputs/local_run/
+/results/
+/kaggle_sr_smoke_test.ipynb
+/super-resolution-ai-scientist-source.zip
+notebooks/HSC_HST_SR_Scientist_Kaggle_50_Epochs_2_Rounds.ipynb
+notebooks/DeepLense_HF_HSC_HST_Nemotron_2_Rounds_Kaggle.ipynb

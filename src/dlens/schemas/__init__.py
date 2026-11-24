@@ -23,6 +23,7 @@ from dlens.schemas._simulation import (
     SimOutput,
     SubstructureType,
 )
+from dlens.schemas._super_resolution import SRDatasetRef
 
 __all__ = [
     # V1 simulation stage
@@ -43,4 +44,6 @@ __all__ = [
     "CodeParamComparison",
     "FieldComparison",
     "TwoStageResult",
+    # Paired super-resolution data
+    "SRDatasetRef",
 ]
