@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import time
 
@@ -118,15 +119,20 @@ def main() -> int:
         ar = compute_analysis(ir, val_ref.class_names)
         dt = round(time.monotonic() - t0, 1)
         train_acc = float(tr.metrics.get("train_accuracy", float("nan")))
-        val_acc = float(ir.accuracy or float("nan"))
+        val_acc = float(ar.accuracy)
+        if not math.isfinite(val_acc):
+            raise ValueError(f"{spec.name} produced a non-finite validation accuracy")
         row = {"name": spec.name, "judge_rank": pos + 1, "params_m": _params_m(spec),
                "train_accuracy": train_acc, "val_accuracy": val_acc,
                "gap": round(train_acc - val_acc, 4), "macro_auc": ar.macro_auc,
                "train_seconds": dt,
                "recorded_short_val": (shortlist.get(spec.name) or {}).get("val_accuracy")}
         out["results"].append(row)
+        auc = "n/a" if ar.macro_auc is None else (
+            f"{ar.macro_auc:.4f}" if math.isfinite(ar.macro_auc) else "invalid"
+        )
         print(f"    {spec.name:<24} judge#{pos+1:<2} val={val_acc:.4f} "
-              f"gap={row['gap']:+.4f} auc={ar.macro_auc:.4f} ({dt}s)", flush=True)
+              f"gap={row['gap']:+.4f} auc={auc} ({dt}s)", flush=True)
         with open(args.out, "w") as fh:
             json.dump(out, fh, indent=2)
 

@@ -18,6 +18,7 @@ import argparse
 import asyncio
 import glob
 import json
+import math
 import os
 import time
 
@@ -32,6 +33,12 @@ from dlens.schemas._model_design import TrainingConfig
 from dlens.tools._torch_backends import TorchInferBackend, TorchTrainBackend
 
 RULE = "=" * 78
+
+
+def _metric_text(value: float | None) -> str:
+    if value is None:
+        return "n/a"
+    return f"{value:.4f}" if math.isfinite(value) else "invalid"
 
 
 def _ref(root: str, classes: list[str]) -> DatasetRef:
@@ -128,7 +135,9 @@ async def main() -> int:
     # last iteration stays visible either way.
     best = best_run_by_val_accuracy(state)
     best_train = best.train_result.metrics.get("train_accuracy", float("nan"))
-    best_val = best.infer_result.accuracy or float("nan")
+    best_val = best.infer_result.accuracy
+    if best_val is None or not math.isfinite(best_val):
+        raise RuntimeError("best tuning run has no finite validation accuracy")
     print(f"\n{RULE}\n  SUMMARY\n{RULE}")
     print(f"  winner architecture : {result.winner.name} "
           f"(family={result.winner.family.value}, depths={result.winner.depths}, "
@@ -138,13 +147,14 @@ async def main() -> int:
         t = r.train_result.metrics.get("train_accuracy", float("nan"))
         v = r.infer_result.accuracy if r.infer_result.accuracy is not None else float("nan")
         auc_r = r.analysis_result.macro_auc
-        auc_s = f"{auc_r:.4f}" if auc_r is not None else "n/a"
-        print(f"      it{r.iteration}: train={t:.4f} val={v:.4f} gap={t - v:+.4f} "
+        auc_s = _metric_text(auc_r)
+        print(f"      it{r.iteration}: train={_metric_text(t)} val={_metric_text(v)} "
+              f"gap={_metric_text(t - v)} "
               f"auc={auc_s}{'   <- best' if r is best else ''}")
     best_auc = best.analysis_result.macro_auc
-    print(f"  best (tuned)        : it{best.iteration} train={best_train:.4f} "
-          f"val={best_val:.4f} gap={best_train - best_val:.4f} "
-          f"auc={f'{best_auc:.4f}' if best_auc is not None else 'n/a'}")
+    print(f"  best (tuned)        : it{best.iteration} train={_metric_text(best_train)} "
+          f"val={_metric_text(best_val)} gap={_metric_text(best_train - best_val)} "
+          f"auc={_metric_text(best_auc)}")
     print(f"  runtime             : phase A {phase_a/60:.1f} min | phase B {phase_b/60:.1f} min "
           f"| TOTAL {(phase_a + phase_b)/60:.1f} min")
     print(f"  search timings (s)  : { {k: v for k, v in result.timings.items()} }")

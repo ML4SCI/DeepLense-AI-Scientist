@@ -25,6 +25,7 @@ import argparse
 import glob
 import itertools
 import json
+import math
 import os
 import time
 
@@ -126,7 +127,9 @@ def main() -> int:
         ar = compute_analysis(ir, val_ref.class_names)
         dt = round(time.monotonic() - t0, 1)
         train_acc = float(tr.metrics.get("train_accuracy", float("nan")))
-        val_acc = float(ir.accuracy or float("nan"))
+        val_acc = float(ar.accuracy)
+        if not math.isfinite(val_acc):
+            raise ValueError(f"{spec.name} produced a non-finite validation accuracy")
         row = {
             "name": name, "family": family, "params_m": _params_m(spec),
             "short_val_accuracy": short_val, "short_train_seconds": short_s,
@@ -138,9 +141,12 @@ def main() -> int:
         out["results"].append(row)
         short_txt = f"@10ep {short_val:.4f} -> " if short_val is not None else "never trained -> "
         delta_txt = f"({row['delta']:+.4f})  " if row["delta"] is not None else ""
+        auc = "n/a" if ar.macro_auc is None else (
+            f"{ar.macro_auc:.4f}" if math.isfinite(ar.macro_auc) else "invalid"
+        )
         print(f"  {name:<22} {family:<12} {row['params_m']:>7}M  "
               f"{short_txt}@{args.epochs}ep {val_acc:.4f}  "
-              f"{delta_txt}gap {row['gap']:+.4f}  {dt}s", flush=True)
+              f"{delta_txt}gap {row['gap']:+.4f} auc {auc}  {dt}s", flush=True)
         with open(args.out, "w") as fh:
             json.dump(out, fh, indent=2)
 

@@ -21,6 +21,7 @@ import argparse
 import asyncio
 import glob
 import json
+import math
 import os
 import time
 
@@ -109,15 +110,20 @@ async def main() -> int:
             ar = compute_analysis(ir, val_ref.class_names)
             dt = round(time.monotonic() - t0, 1)
             ta = float(tr.metrics.get("train_accuracy", float("nan")))
-            va = float(ir.accuracy or float("nan"))
+            va = float(ar.accuracy)
+            if not math.isfinite(va):
+                raise ValueError(f"{name} produced a non-finite validation accuracy")
             out["results"].append({
                 "name": name, "family": fam, "params_m": _params_m(spec),
                 "train_accuracy": ta, "val_accuracy": va, "gap": round(ta - va, 4),
                 "macro_auc": ar.macro_auc, "train_seconds": dt,
                 "weights_path": tr.weights_path,
             })
+            auc = "n/a" if ar.macro_auc is None else (
+                f"{ar.macro_auc:.4f}" if math.isfinite(ar.macro_auc) else "invalid"
+            )
             print(f"  {name:<22}{fam:<8}{_params_m(spec):>7}M  val={va:.4f} "
-                  f"gap={ta-va:+.4f} auc={ar.macro_auc:.4f}  {dt}s", flush=True)
+                  f"gap={ta-va:+.4f} auc={auc}  {dt}s", flush=True)
             with open(args.out, "w") as fh:
                 json.dump(out, fh, indent=2)
         best = max(out["results"], key=lambda r: r["val_accuracy"])
@@ -171,7 +177,14 @@ async def main() -> int:
     )
 
     # Select on validation only, then touch the test set exactly once.
-    best_run = max(state.runs, key=lambda r: r.infer_result.accuracy or -1.0)
+    valid_runs = [
+        r for r in state.runs
+        if r.infer_result.accuracy is not None
+        and math.isfinite(r.infer_result.accuracy)
+    ]
+    if not valid_runs:
+        raise RuntimeError("no finite validation accuracy was produced during tuning")
+    best_run = max(valid_runs, key=lambda r: r.infer_result.accuracy)
     test_ref = _ref(os.path.expanduser(args.test_root), classes)
     ir = infer_backend.infer(best_run.train_result.weights_path, test_ref)
     ar = compute_analysis(ir, classes)
@@ -183,8 +196,9 @@ async def main() -> int:
             "iteration": r.iteration,
             "train_accuracy": r.train_result.metrics.get("train_accuracy"),
             "val_accuracy": r.infer_result.accuracy,
-            "gap": round((r.train_result.metrics.get("train_accuracy") or 0)
-                         - (r.infer_result.accuracy or 0), 4),
+            "gap": round(
+                r.train_result.metrics["train_accuracy"] - r.infer_result.accuracy, 4
+            ),
             "macro_auc": r.analysis_result.macro_auc,
             "planner_action": (r.planner_decision.action.value if r.planner_decision else None),
             "planner_rationale": (r.planner_decision.rationale if r.planner_decision else None),
@@ -206,7 +220,12 @@ async def main() -> int:
               f"val={r['val_accuracy']:.4f} gap={r['gap']:+.4f} -> {r['planner_action']}")
     print(f"\n  best iteration : it{out['best_iteration']} "
           f"val={out['best_val_accuracy']:.4f}")
-    print(f"  HELD-OUT TEST  : acc={ir.accuracy:.4f} auc={ar.macro_auc:.4f} "
+    test_auc = (
+        "n/a"
+        if ar.macro_auc is None
+        else f"{ar.macro_auc:.4f}" if math.isfinite(ar.macro_auc) else "invalid"
+    )
+    print(f"  HELD-OUT TEST  : acc={ir.accuracy:.4f} auc={test_auc} "
           f"(n={test_ref.num_samples}, evaluated once)")
     print(f"\nartifacts -> {args.out}")
     return 0

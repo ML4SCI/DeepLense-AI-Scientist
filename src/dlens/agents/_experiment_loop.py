@@ -27,6 +27,7 @@ the planner react to the collapse instead of reporting success.
 
 from __future__ import annotations
 
+import math
 from typing import Optional, Protocol, runtime_checkable
 
 from dlens.schemas._downstream import DatasetRef
@@ -123,7 +124,11 @@ class ExperimentLoop:
             train_acc = float(tr.metrics.get("train_accuracy", float("nan")))
             val_acc = float(ir.accuracy if ir.accuracy is not None else float("nan"))
             gap = train_acc - val_acc
-            auc = f"{ar.macro_auc:.4f}" if ar.macro_auc is not None else "n/a"
+            auc = (
+                "n/a"
+                if ar.macro_auc is None
+                else f"{ar.macro_auc:.4f}" if math.isfinite(ar.macro_auc) else "invalid"
+            )
             print(f"    train={train_acc:.4f}  val={val_acc:.4f}  gap={gap:.4f}  auc={auc}",
                   flush=True)
 
@@ -190,11 +195,14 @@ def best_run_by_val_accuracy(state: ExperimentState) -> Optional[ExperimentRun]:
     if not state.runs:
         return None
 
-    def _val(run: ExperimentRun) -> float:
-        acc = run.infer_result.accuracy
-        return float(acc) if acc is not None else float("-inf")
-
-    return max(state.runs, key=_val)
+    valid_runs = [
+        run for run in state.runs
+        if run.infer_result.accuracy is not None
+        and math.isfinite(run.infer_result.accuracy)
+    ]
+    if not valid_runs:
+        raise ValueError("best validation run requires at least one finite accuracy")
+    return max(valid_runs, key=lambda run: run.infer_result.accuracy)
 
 
 def _apply(
