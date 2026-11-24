@@ -28,7 +28,7 @@ Actions:
 Available `updated_params` keys (typed; anything else is ignored):
   architecture: name ("resnet18" | "resnet34")
   training: learning_rate, batch_size, epochs, weight_decay, lr_scheduler,
-            dropout (0..1), augment (bool), early_stop_patience (int, 0=off)
+            dropout [0, 1), augment (bool), early_stop_patience (int, 0=off)
 
 Rules:
 - ONE primary change per iteration (you may pair it with early_stop_patience).

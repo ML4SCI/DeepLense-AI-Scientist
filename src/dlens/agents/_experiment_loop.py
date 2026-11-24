@@ -16,6 +16,7 @@ Stop conditions (code-side guards, besides the planner's own report/stop):
     (see below) — a small gap alone is not convergence
   * val accuracy stops improving for ``patience`` consecutive iterations
   * ``max_iterations`` budget reached
+  * the planner proposes params that fail validation (e.g. ``dropout`` >= 1)
 
 A closed gap only counts as convergence if validation accuracy is acceptable.
 An intervention can close the gap by *destroying* the model — e.g. early
@@ -28,6 +29,8 @@ the planner react to the collapse instead of reporting success.
 from __future__ import annotations
 
 from typing import Optional, Protocol, runtime_checkable
+
+from pydantic import ValidationError
 
 from dlens.schemas._downstream import DatasetRef
 from dlens.schemas._experiment import (
@@ -175,7 +178,22 @@ class ExperimentLoop:
                 break
 
             # --- ACT: apply the typed deltas (re-validated) ---
-            arch, cfg = _apply(decision.updated_params, arch, cfg)
+            try:
+                arch, cfg = _apply(decision.updated_params, arch, cfg)
+            except ValidationError as exc:
+                # The planner proposed out-of-range values (updated_params is untyped).
+                # End like a guard stop so the completed runs are not lost.
+                problems = "; ".join(
+                    f"{'.'.join(str(p) for p in err['loc'])}: {err['msg']}"
+                    for err in exc.errors()
+                )
+                print(f"    [guard] planner proposed invalid params — {problems}", flush=True)
+                run.planner_decision = PlannerDecision(
+                    action=PlannerAction.REPORT,
+                    rationale=f"[loop guard] planner proposed invalid params "
+                              f"{decision.updated_params} ({problems}).",
+                )
+                break
 
         return state
 
