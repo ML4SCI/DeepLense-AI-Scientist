@@ -105,3 +105,11 @@ Or run the test suite:
 ```bash
 uv run pytest
 ```
+
+## Super-resolution workflow
+
+DLens also supports x2 grayscale super-resolution experiments. Train and evaluate
+the compact iterative autoencoder baseline for 50 epochs on the same paired dataset before
+running the SR scientist. See the [super-resolution workflow guide](docs/SR_WORKFLOW.md)
+for the data contract, baseline and scientist commands, validation checks,
+and report generation.
