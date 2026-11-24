@@ -47,11 +47,13 @@ This guide walks you through setting up the `dlens` library.
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-### Windows
+### Windows (PowerShell)
 
-Do yourself a favor and switch to Linux or macOS.
+Open PowerShell and run:
 
-_(But if you insist: `powershell -c "irm https://astral.sh/uv/install.ps1 | iex"`)_
+```powershell
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
 
 Restart your terminal, then verify:
 
@@ -70,8 +72,20 @@ cd DeepLense-AI-Scientist
 
 ```bash
 uv venv
-source .venv/bin/activate  # macOS/Linux
-# .venv\Scripts\activate   # Windows
+```
+
+Activate the environment in your shell:
+
+### macOS / Linux
+
+```bash
+source .venv/bin/activate
+```
+
+### Windows (PowerShell)
+
+```powershell
+.venv\Scripts\Activate.ps1
 ```
 
 ## 4. Install the package and dependencies
