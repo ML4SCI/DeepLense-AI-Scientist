@@ -58,6 +58,14 @@ def _ref(**kw) -> DatasetRef:
     return DatasetRef(**base)
 
 
+def test_centroid_train_rejects_class_without_samples(tmp_path: Path):
+    ds = _make_dataset(tmp_path)
+    ds = ds.model_copy(update={"class_names": [*ds.class_names, "c"]})
+    with pytest.raises(RuntimeError, match=r"class\(es\) \['c'\]"):
+        CentroidTrainBackend(output_root=str(tmp_path / "models")).train(ds, _arch(), _cfg())
+    assert not (tmp_path / "models").exists()
+
+
 def test_real_backends_chain(tmp_path: Path):
     ds = _make_dataset(tmp_path)
     tr = CentroidTrainBackend(output_root=str(tmp_path / "models")).train(ds, _arch(), _cfg())
