@@ -226,19 +226,21 @@ class TorchTrainBackend:
                 xb = torch.flip(xb, dims=[2])
             return torch.rot90(xb, k=int(torch.randint(0, 4, (1,))), dims=[2, 3])
 
-        def _holdout_acc() -> float:
+        def _eval_acc(xs: np.ndarray, ys: np.ndarray) -> float:
+            was_training = model.training
             model.eval()
             correct = 0
             with torch.no_grad():
-                for i in range(0, len(es_x), 256):
-                    xb = torch.from_numpy(es_x[i : i + 256]).to(device)
-                    yb = torch.from_numpy(es_y[i : i + 256]).to(device)
+                for i in range(0, len(xs), 256):
+                    xb = torch.from_numpy(xs[i : i + 256]).to(device)
+                    yb = torch.from_numpy(ys[i : i + 256]).to(device)
                     correct += int((model(xb).argmax(1) == yb).sum())
-            model.train()
-            return correct / len(es_y)
+            if was_training:
+                model.train()
+            return correct / len(ys)
 
         model.train()
-        final_loss, final_acc = 0.0, 0.0
+        final_loss = 0.0
         best_acc, best_state, since_best = -1.0, None, 0
         epochs_run = 0
         for epoch in range(config.epochs):
@@ -257,11 +259,11 @@ class TorchTrainBackend:
                 tot += len(yb)
             if sched is not None:
                 sched.step()
-            final_loss, final_acc = loss_sum / tot, correct / tot
+            final_loss, epoch_train_acc = loss_sum / tot, correct / tot
             epochs_run = epoch + 1
-            line = f"    epoch {epochs_run}/{config.epochs}  loss={final_loss:.4f}  acc={final_acc:.4f}"
+            line = f"    epoch {epochs_run}/{config.epochs}  loss={final_loss:.4f}  acc={epoch_train_acc:.4f}"
             if es_x is not None:
-                hold_acc = _holdout_acc()
+                hold_acc = _eval_acc(es_x, es_y)
                 line += f"  holdout={hold_acc:.4f}"
                 if hold_acc > best_acc + 1e-4:
                     best_acc, since_best = hold_acc, 0
@@ -274,6 +276,10 @@ class TorchTrainBackend:
                 break
         if best_state is not None:
             model.load_state_dict(best_state)
+
+        # Evaluate the final/restored checkpoint on non-augmented training inputs
+        # in eval mode so train_accuracy matches validation inference semantics.
+        eval_train_acc = _eval_acc(x, y)
 
         run_id = str(uuid.uuid4())[:8]
         out_dir = Path(self._output_root) / run_id
@@ -289,7 +295,7 @@ class TorchTrainBackend:
             },
             weights_path,
         )
-        metrics = {"train_accuracy": round(final_acc, 4), "final_loss": round(final_loss, 4)}
+        metrics = {"train_accuracy": round(eval_train_acc, 4), "final_loss": round(final_loss, 4)}
         if best_acc >= 0:
             metrics["holdout_accuracy"] = round(best_acc, 4)
         return TrainResult(
