@@ -293,7 +293,8 @@ def validate_parameters(
         messages.append(msg)
 
     def ok(name: str) -> None:
-        checks[name] = True
+        # Never overwrite an earlier failure on the same check (e.g. multi-source Sersic loop).
+        checks.setdefault(name, True)
 
     # --- every number finite -------------------------------------------------
     # No range check below bounds a centre or an amplitude, and NaN slips past
