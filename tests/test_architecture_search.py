@@ -133,3 +133,89 @@ def test_search_feeds_history_into_later_rounds(tmp_path: Path):
     assert "MEASURED RESULTS SO FAR" not in seen_prompts[0]   # round 1 is blind
     assert "MEASURED RESULTS SO FAR" in seen_prompts[1]       # round 2 is informed
     assert "r1_a" in seen_prompts[1] and "val_accuracy=" in seen_prompts[1]
+
+
+def test_search_preserves_zero_val_accuracy_and_ranks_deterministically(tmp_path: Path):
+    import math
+
+    from dlens.schemas._downstream import InferResult, TrainResult
+
+    refs = _dataset(tmp_path)
+
+    class _StubTrain:
+        name = "stub"
+
+        def __init__(self) -> None:
+            self._idx = 0
+
+        def train(self, dataset, architecture, config):
+            tag = str(self._idx)
+            self._idx += 1
+            return TrainResult(
+                run_id=tag, weights_path=tag, backend="stub",
+                num_classes=2, metrics={"train_accuracy": 0.5}, epochs_run=1,
+            )
+
+    class _StubInfer:
+        name = "stub"
+
+        def __init__(self, accuracies: list[float | None]) -> None:
+            self._accs = list(accuracies)
+            self._idx = 0
+
+        def infer(self, weights_path, dataset):
+            acc = self._accs[self._idx]
+            self._idx += 1
+            return InferResult(
+                run_id=str(self._idx), num_samples=4, num_classes=2,
+                predictions=[0, 0, 1, 1],
+                probabilities=[[0.8, 0.2], [0.8, 0.2], [0.2, 0.8], [0.2, 0.8]],
+                true_labels=[0, 0, 1, 1],
+                accuracy=acc, backend="stub",
+            )
+
+    def _run_pair(first_acc: float | None, second_acc: float | None):
+        batch = [_cand("cand_first"), _cand("cand_second", family="cnn")]
+        search = ArchitectureSearch(
+            generator=ArchitectureGenerator(model=make_scripted_generator([batch])),
+            judge=ArchitectureJudge(model=make_scripted_judge([0, 1])),
+            train_backend=_StubTrain(),
+            infer_backend=_StubInfer([first_acc, second_acc]),
+            num_candidates=2, top_k=2, rounds=1, candidate_epochs=1,
+        )
+        return asyncio.run(search.search(
+            task_description="zero accuracy ranking test",
+            train_ref=refs["train"], val_ref=refs["val"],
+        ))
+
+    res_zero_first = _run_pair(0.0, 0.25)
+    assert res_zero_first.rounds[0][0].val_accuracy == 0.0
+    assert not math.isnan(res_zero_first.rounds[0][0].val_accuracy)
+    assert res_zero_first.winner.name == "cand_second"
+    assert res_zero_first.winner_eval.val_accuracy == 0.25
+
+    res_pos_first = _run_pair(0.25, 0.0)
+    assert res_pos_first.rounds[0][1].val_accuracy == 0.0
+    assert res_pos_first.winner.name == "cand_first"
+    assert res_pos_first.winner_eval.val_accuracy == 0.25
+
+    # None, NaN, and +/-inf must never beat finite scores (including 0.0).
+    res_none_vs_zero = _run_pair(None, 0.0)
+    assert math.isnan(res_none_vs_zero.rounds[0][0].val_accuracy)
+    assert res_none_vs_zero.winner.name == "cand_second"
+    assert res_none_vs_zero.winner_eval.val_accuracy == 0.0
+
+    res_nan_vs_zero = _run_pair(float("nan"), 0.0)
+    assert res_nan_vs_zero.winner.name == "cand_second"
+
+    res_inf_vs_pos = _run_pair(float("inf"), 0.25)
+    assert res_inf_vs_pos.winner.name == "cand_second"
+
+    # Ties resolve deterministically to the first candidate.
+    res_tie = _run_pair(0.5, 0.5)
+    assert res_tie.winner.name == "cand_first"
+
+    # No finite validation scores -> fail clearly.
+    with pytest.raises(RuntimeError, match="finite validation accuracy"):
+        _run_pair(None, float("nan"))
+

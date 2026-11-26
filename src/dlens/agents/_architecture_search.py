@@ -27,6 +27,7 @@ Every phase is timed (``timings``) for the demo-runtime estimate.
 
 from __future__ import annotations
 
+import math
 import time
 from typing import Any, Optional
 
@@ -316,8 +317,9 @@ class ArchitectureSearch:
             ir = self.infer_backend.infer(tr.weights_path, val_ref)
             ar = compute_analysis(ir, val_ref.class_names)
             dt = round(time.monotonic() - t0, 1)
-            train_acc = float(tr.metrics.get("train_accuracy", float("nan")))
-            val_acc = float(ir.accuracy or float("nan"))
+            raw_train = tr.metrics.get("train_accuracy")
+            train_acc = float(raw_train) if raw_train is not None else float("nan")
+            val_acc = float(ir.accuracy) if ir.accuracy is not None else float("nan")
             evals.append(CandidateEval(
                 name=spec.name, params_m=_params_m(spec),
                 train_accuracy=train_acc, val_accuracy=val_acc,
@@ -333,5 +335,8 @@ class ArchitectureSearch:
     def _best(
         specs: list[ArchitectureSpec], evals: list[CandidateEval]
     ) -> tuple[ArchitectureSpec, CandidateEval]:
-        idx = max(range(len(evals)), key=lambda i: evals[i].val_accuracy)
+        valid = [i for i, ev in enumerate(evals) if math.isfinite(ev.val_accuracy)]
+        if not valid:
+            raise RuntimeError("no candidate produced a finite validation accuracy")
+        idx = max(valid, key=lambda i: evals[i].val_accuracy)
         return specs[idx], evals[idx]
