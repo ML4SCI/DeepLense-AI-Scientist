@@ -12,8 +12,9 @@ torch = pytest.importorskip("torch")
 from dlens.schemas._downstream import DatasetRef  # noqa: E402
 from dlens.schemas._model_design import ArchFamily, ArchitectureSpec, TrainingConfig  # noqa: E402
 from dlens.tools._inference import get_infer_backend  # noqa: E402
-from dlens.tools._torch_backends import TorchInferBackend, TorchTrainBackend  # noqa: E402
+from dlens.tools._torch_backends import TorchInferBackend, TorchTrainBackend, _device  # noqa: E402
 from dlens.tools._training import get_train_backend  # noqa: E402
+from unittest.mock import MagicMock, patch  # noqa: E402
 
 
 def _tiny_dataset(tmp_path: Path, n_per: int = 8, shape=(16, 16)) -> DatasetRef:
@@ -73,4 +74,65 @@ def test_train_seed_is_configurable_and_reproducible(tmp_path: Path):
 def test_train_default_seed_is_zero(tmp_path: Path):
     # Default must stay 0 so previously published single-seed runs reproduce.
     assert TorchTrainBackend(output_root=str(tmp_path)).seed == 0
+
+
+def test_device_selection_precedence():
+    mock_torch = MagicMock()
+    mock_torch.device = lambda d: f"device:{d}"
+
+    # 1. CUDA takes top precedence even if MPS is also available
+    mock_torch.cuda.is_available.return_value = True
+    mock_torch.backends.mps.is_available.return_value = True
+    assert _device(mock_torch) == "device:cuda"
+
+    # 2. When CUDA is unavailable and MPS is available, fallback to MPS
+    mock_torch.cuda.is_available.return_value = False
+    mock_torch.backends.mps.is_available.return_value = True
+    assert _device(mock_torch) == "device:mps"
+
+    # 3. When both CUDA and MPS are unavailable, fallback to CPU
+    mock_torch.cuda.is_available.return_value = False
+    mock_torch.backends.mps.is_available.return_value = False
+    assert _device(mock_torch) == "device:cpu"
+
+
+def test_device_selection_safe_on_missing_or_faulty_backends():
+    # If torch is missing cuda/backends attributes or is_available raises
+    faulty_torch = MagicMock()
+    faulty_torch.device = lambda d: f"device:{d}"
+    faulty_torch.cuda.is_available.side_effect = RuntimeError("CUDA driver error")
+    faulty_torch.backends.mps.is_available.side_effect = AttributeError("No MPS")
+    assert _device(faulty_torch) == "device:cpu"
+
+
+def test_backends_use_automatic_device_and_preserve_override(tmp_path: Path):
+    ds = _tiny_dataset(tmp_path, n_per=4)
+    arch = ArchitectureSpec(
+        name="resnet18", family=ArchFamily.RESNET, input_shape=(16, 16), channels=1, num_classes=2
+    )
+    cfg = TrainingConfig(loss="cross_entropy", epochs=1, batch_size=4, learning_rate=1e-3)
+
+    # Automatic device selection is invoked when device=None
+    with patch("dlens.tools._torch_backends._device", return_value=torch.device("cpu")) as mock_dev:
+        train_be = TorchTrainBackend(output_root=str(tmp_path / "auto_m"), device=None)
+        tr = train_be.train(ds, arch, cfg)
+        mock_dev.assert_called_once()
+
+    with patch("dlens.tools._torch_backends._device", return_value=torch.device("cpu")) as mock_dev:
+        infer_be = TorchInferBackend(device=None)
+        ir = infer_be.infer(tr.weights_path, ds)
+        mock_dev.assert_called_once()
+        assert ir.backend == "torch"
+
+    # Explicit override preserves specified device without calling _device
+    with patch("dlens.tools._torch_backends._device") as mock_dev:
+        train_override = TorchTrainBackend(output_root=str(tmp_path / "ovr_m"), device="cpu")
+        tr_ovr = train_override.train(ds, arch, cfg)
+        mock_dev.assert_not_called()
+
+    with patch("dlens.tools._torch_backends._device") as mock_dev:
+        infer_override = TorchInferBackend(device="cpu")
+        ir_ovr = infer_override.infer(tr_ovr.weights_path, ds)
+        mock_dev.assert_not_called()
+        assert ir_ovr.backend == "torch"
 
