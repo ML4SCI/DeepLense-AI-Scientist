@@ -12,6 +12,8 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from dlens.schemas._model_design import ArchitectureSpec, TrainingConfig
+
 
 class DatasetRef(BaseModel):
     """A reference to an on-disk classification dataset.
@@ -30,6 +32,23 @@ class DatasetRef(BaseModel):
         return len(self.class_names)
 
 
+class ProvenanceRecord(BaseModel):
+    """Reproducibility metadata captured for a training run."""
+
+    git_commit: Optional[str] = Field(
+        default=None, description="Git commit hash, when the run was inside a Git checkout."
+    )
+    python_version: str = Field(description="Python runtime version.")
+    pytorch_version: Optional[str] = Field(
+        default=None, description="PyTorch version, when PyTorch was available."
+    )
+    device: str = Field(description="Effective device used for training.")
+    seed: Optional[int] = Field(default=None, description="Random seed used by training.")
+    backend: str = Field(description="Training backend used.")
+    architecture: ArchitectureSpec = Field(description="Architecture configuration.")
+    training_config: TrainingConfig = Field(description="Training configuration.")
+
+
 class TrainResult(BaseModel):
     """Output of the Train stage: a trained model and its training metrics."""
 
@@ -41,6 +60,9 @@ class TrainResult(BaseModel):
         default_factory=dict, description="Training metrics (e.g. train_accuracy)."
     )
     epochs_run: int = Field(default=1, description="Number of epochs/passes run.")
+    provenance: Optional[ProvenanceRecord] = Field(
+        default=None, description="Reproducibility metadata captured for this result."
+    )
 
 
 class InferResult(BaseModel):

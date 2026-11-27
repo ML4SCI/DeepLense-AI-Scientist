@@ -34,8 +34,18 @@ def test_torch_train_and_infer_roundtrip(tmp_path: Path):
 
     tr = TorchTrainBackend(output_root=str(tmp_path / "m"), device="cpu").train(ds, arch, cfg)
     assert tr.backend == "torch" and tr.epochs_run == 2
+    assert tr.provenance is not None
+    assert tr.provenance.device == "cpu"
+    assert tr.provenance.seed == 0
+    assert tr.provenance.architecture == arch
+    assert tr.provenance.training_config == cfg
     assert Path(tr.weights_path).exists()
     assert "train_accuracy" in tr.metrics
+    checkpoint = torch.load(tr.weights_path, map_location="cpu", weights_only=False)
+    assert checkpoint["provenance"]["device"] == "cpu"
+    assert checkpoint["provenance"]["seed"] == 0
+    assert checkpoint["provenance"]["architecture"] == arch.model_dump(mode="json")
+    assert checkpoint["provenance"]["training_config"] == cfg.model_dump(mode="json")
 
     ir = TorchInferBackend(device="cpu").infer(tr.weights_path, ds)
     assert ir.backend == "torch"
@@ -73,4 +83,3 @@ def test_train_seed_is_configurable_and_reproducible(tmp_path: Path):
 def test_train_default_seed_is_zero(tmp_path: Path):
     # Default must stay 0 so previously published single-seed runs reproduce.
     assert TorchTrainBackend(output_root=str(tmp_path)).seed == 0
-
