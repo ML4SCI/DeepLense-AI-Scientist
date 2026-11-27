@@ -100,7 +100,7 @@ class DataSimulationAgent(DLensConversationalAgent):
 
     # -- HITL conversation API --------------------------------------------- #
 
-    async def arun(self, query, *, session_id: Optional[str] = None, deps=None, **kwargs):
+    async def arun(self, query: str, *, session_id: str|None = None, deps: Any=None, **kwargs) -> Any:
         """Send a user message. Returns the raw pydantic-ai result; inspect
         ``result.output`` (``SimClarification`` | ``SimReport`` | ``DeferredToolRequests``)."""
         sid = session_id or self._session
@@ -114,7 +114,7 @@ class DataSimulationAgent(DLensConversationalAgent):
             self._pending[sid] = (result.output, result.all_messages())
         return result
 
-    async def approve(self, *, session_id: Optional[str] = None):
+    async def approve(self, *, session_id: str|None = None) -> Any:
         """Approve the pending plan and resume; the simulation runs."""
         return await self._resume(session_id or self._session, approved=True)
 
@@ -122,12 +122,12 @@ class DataSimulationAgent(DLensConversationalAgent):
         self,
         reason: str = "The human declined the proposed plan.",
         *,
-        session_id: Optional[str] = None,
-    ):
+        session_id: str|None = None,
+    ) -> Any:
         """Reject the pending plan and resume; no simulation runs."""
         return await self._resume(session_id or self._session, approved=False, reason=reason)
 
-    async def _resume(self, session_id: str, *, approved: bool, reason: str = ""):
+    async def _resume(self, session_id: str|None = None, *, approved: bool, reason: str = "") -> Any:
         if session_id not in self._pending:
             raise RuntimeError(
                 "No plan is awaiting approval for this session; call arun() first."
