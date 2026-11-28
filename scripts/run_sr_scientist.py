@@ -226,8 +226,11 @@ def _proposal_batch(history: list[dict], winner: dict | None, baseline: dict,
             signature = (candidate.family, candidate.width, candidate.depth)
             experiment = (*signature, candidate.loss_id)
             epochs = getattr(candidate, "screening_epochs", screening_epoch_bounds[1])
+            # Within a batch, uniqueness is per architecture: the same
+            # (family, width, depth) with a different loss is still a duplicate.
             if (candidate.family not in families or experiment in measured or
-                    experiment in reserved or candidate.loss_id not in allowed_losses(candidate.family) or
+                    signature in {item[:3] for item in reserved} or
+                    candidate.loss_id not in allowed_losses(candidate.family) or
                     type(epochs) is not int or not screening_epoch_bounds[0] <= epochs <= screening_epoch_bounds[1]):
                 log["rejected"].append({"architecture": signature,
                                         "loss_id": candidate.loss_id,
