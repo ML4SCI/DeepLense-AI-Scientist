@@ -341,6 +341,28 @@ class SRScientistTests(unittest.TestCase):
         self.assertEqual(len(specs), 5)
         self.assertEqual(log["screening_epochs"], [2, 3, 4, 5, 6])
 
+    def test_batch_rejects_same_architecture_with_a_different_loss(self) -> None:
+        def candidate(family, loss_id):
+            return SimpleNamespace(family=family, width=32, depth=2, loss_id=loss_id,
+                                   screening_epochs=6, reasoning="Proposed by the LLM")
+        proposed = [candidate("srcnn", "l1"), candidate("srcnn", "mse"),
+                    candidate("cnn", "l1"), candidate("resnet", "l1"),
+                    candidate("vit", "l1")]
+        answer = SimpleNamespace(candidates=proposed, reasoning="Diverse architectures")
+        families = ["cnn", "srcnn", "resnet", "vit", "hybrid"]
+        with patch("dlens.agents._sr_scientist.SRGenerator") as generator:
+            generator.return_value.propose_batch = AsyncMock(return_value=answer)
+            specs, log = _proposal_batch([], None, {"psnr_db": 30.0, "ssim": 0.8},
+                                         families, 1, 15, 32, 2, True,
+                                         screening_epoch_bounds=(2, 6))
+        signatures = [(spec.family, spec.width, spec.depth) for spec in specs]
+        self.assertEqual(len(signatures), 5)
+        self.assertEqual(len(set(signatures)), 5)
+        self.assertEqual([item["architecture"] for item in log["rejected"]],
+                         [("srcnn", 32, 2)])
+        self.assertEqual(log["rejected"][0]["loss_id"], "mse")
+        self.assertEqual(len(log["loss_ids"]), 5)
+
     def test_epoch_planner_validates_promotion_and_tuning_budgets(self) -> None:
         candidate = {"id": "model", "architecture": {"family": "edsr"},
                      "psnr_db": 31.0, "ssim": 0.75}
